@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <id>TD.SqlPartial.Tool</id>
+        <version>1.0.0</version>
+        <authors>chinhnk</authors>
+        <description>MSBuild task for generating partial classes from SQL files with configurable modifiers</description>
+        <tags>sqlpartial msbuild dotnet sql tool</tags>
+        <readme>README.md</readme>
+    </metadata>
+    <files>
+        <!-- Build files -->
+        <file src="TD.SqlPartial.Tool.targets" target="build" />
+
+        <!-- Documentation -->
+        <file src="README.md" target="" />
+    </files>
+</package>
