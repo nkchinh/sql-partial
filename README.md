@@ -5,7 +5,7 @@ MSBuild task for generating partial classes from SQL files with configurable mod
 ## Installation
 
 ```xml
-<PackageReference Include="TD.SqlPartial.Tool" Version="1.0.0" />
+<PackageReference Include="TD.SqlPartial.Tool" Version="1.0.1" />
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ MSBuild task for generating partial classes from SQL files with configurable mod
 
 ```xml
 <ItemGroup>
-    <SqlPartial Include="Sql/**/*.sql"
+    <SqlPartial Include="Sql/**/*.*.sql"
                 ClassModifier="internal"
                 ConstModifier="public" />
 </ItemGroup>

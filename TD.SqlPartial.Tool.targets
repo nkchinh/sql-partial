@@ -95,10 +95,6 @@ namespace {Namespace} {{
         </Task>
     </UsingTask>
 
-    <ItemGroup>
-        <Compile Include="$(IntermediateOutputPath)sqlpartials/**/*.cs" />
-    </ItemGroup>
-
     <Target Name="PartializeSqlFiles"
         BeforeTargets="CoreCompile"
         Inputs="@(SqlPartial);$(MSBuildThisFile);$(MSBuildProjectDirectory)$(MSBuildProjectName).csproj"
@@ -113,6 +109,11 @@ namespace {Namespace} {{
                         OutputFile="$(IntermediateOutputPath)sqlpartials/%(SqlPartial.RelativeDir)%(SqlPartial.Filename).cs"
                         Condition="'@(SqlPartial)' != ''"
                         />
+
+        <ItemGroup>
+            <Compile Include="$(IntermediateOutputPath)sqlpartials/**/*.cs" />
+        </ItemGroup>
+
     </Target>
 
     <Target Name="CleanSqlPartializedOutputs" BeforeTargets="CoreCompile">
