@@ -8,7 +8,7 @@
             <ClassModifier ParameterType="System.String" Required="false" />
             <ConstName ParameterType="System.String" Required="true" />
             <ConstModifier ParameterType="System.String" Required="false" />
-            <OutputFile ParameterType="System.String" Required="true" />
+            <OutputFile ParameterType="System.String" Required="true" Output="true" />
         </ParameterGroup>
         <Task>
             <Using Namespace="System.IO" />
@@ -100,6 +100,11 @@ namespace {Namespace} {{
         Inputs="@(SqlPartial);$(MSBuildThisFile);$(MSBuildProjectDirectory)$(MSBuildProjectName).csproj"
         Outputs="$(IntermediateOutputPath)sqlpartials/%(SqlPartial.RelativeDir)%(SqlPartial.Filename).cs">
 
+        <ItemGroup>
+            <!-- Ensure the generated assemblyinfo file is not already part of the Compile sources -->
+            <Compile Remove="$(IntermediateOutputPath)sqlpartials/%(SqlPartial.RelativeDir)%(SqlPartial.Filename).cs" />
+        </ItemGroup>
+
         <ProcessSqlFile SqlFile="%(SqlPartial.Identity)"
                         Namespace="$(RootNamespace).$([System.String]::Copy(%(SqlPartial.RelativeDir)).Replace('/', '.').Replace('\', '.').TrimEnd('.'))"
                         ClassName="$([System.IO.Path]::GetFileNameWithoutExtension(%(SqlPartial.Filename)))"
@@ -108,12 +113,9 @@ namespace {Namespace} {{
                         ConstModifier="%(SqlPartial.ConstModifier)"
                         OutputFile="$(IntermediateOutputPath)sqlpartials/%(SqlPartial.RelativeDir)%(SqlPartial.Filename).cs"
                         Condition="'@(SqlPartial)' != ''"
-                        />
-
-        <ItemGroup>
-            <Compile Remove="$(IntermediateOutputPath)sqlpartials/**/*.cs" />
-            <Compile Include="$(IntermediateOutputPath)sqlpartials/**/*.cs" Visible="false" />
-        </ItemGroup>
+        >
+            <Output TaskParameter="OutputFile" ItemName="Compile" />
+        </ProcessSqlFile>
 
     </Target>
 
@@ -138,6 +140,6 @@ namespace {Namespace} {{
         </ItemGroup>
 
         <!-- Remove empty directories from bottom up -->
-        <RemoveDir Directories="@(OutputDirectories)" Condition="%(Files)=='0'"  />
+        <RemoveDir Directories="@(OutputDirectories)" Condition="%(Files)=='0'" />
     </Target>
 </Project>
