@@ -111,7 +111,8 @@ namespace {Namespace} {{
                         />
 
         <ItemGroup>
-            <Compile Include="$(IntermediateOutputPath)sqlpartials/**/*.cs" />
+            <Compile Remove="$(IntermediateOutputPath)sqlpartials/**/*.cs" />
+            <Compile Include="$(IntermediateOutputPath)sqlpartials/**/*.cs" Visible="false" />
         </ItemGroup>
 
     </Target>
