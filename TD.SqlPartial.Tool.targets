@@ -96,7 +96,10 @@ namespace {Namespace} {{
     </UsingTask>
 
     <Target Name="PartializeSqlFiles"
-        BeforeTargets="CoreCompile"
+          BeforeTargets="BeforeCompile;CoreCompile"
+          DependsOnTargets="PrepareForBuild;CorePartializeSqlFiles" />
+
+    <Target Name="CorePartializeSqlFiles"
         Inputs="@(SqlPartial);$(MSBuildThisFile);$(MSBuildProjectDirectory)$(MSBuildProjectName).csproj"
         Outputs="$(IntermediateOutputPath)sqlpartials/%(SqlPartial.RelativeDir)%(SqlPartial.Filename).cs">
 
