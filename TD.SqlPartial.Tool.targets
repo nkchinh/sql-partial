@@ -8,7 +8,7 @@
 
     <Target Name="_InjectSqlPartialAsAdditionalFiles" BeforeTargets="GenerateMSBuildEditorConfigFileShouldRun;GenerateMSBuildEditorConfigFile">
         <ItemGroup>
-            <AdditionalFiles Include="@(SqlPartial)" 
+            <AdditionalFiles Include="@(SqlPartial)"
                              SourceItemType="SqlPartial"
                              Namespace="$(RootNamespace).$([System.String]::Copy(%(SqlPartial.RelativeDir)).Replace('/', '.').Replace('\', '.').TrimEnd('.'))"
                              ClassName="$([System.IO.Path]::GetFileNameWithoutExtension(%(SqlPartial.Filename)))"
@@ -16,7 +16,7 @@
         </ItemGroup>
     </Target>
 
-    <!-- Source Generator automatically picks up AdditionalFiles. 
+    <!-- Source Generator automatically picks up AdditionalFiles.
          We use compiler visible metadata to pass parameters. -->
     <ItemGroup>
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SourceItemType" />
@@ -25,7 +25,7 @@
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ClassModifier" />
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ConstName" />
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ConstModifier" />
-        
+
         <CompilerVisibleProperty Include="Nullable" />
     </ItemGroup>
 
