@@ -37,19 +37,33 @@ namespace TD.SqlPartial.Generator
                     if (file.Content == null) continue;
 
                     var fileOptions = optionsProvider.GetOptions(file.Text);
-                    fileOptions.TryGetValue("build_metadata.SqlPartial.Namespace", out var ns);
-                    fileOptions.TryGetValue("build_metadata.SqlPartial.ClassName", out var className);
-                    fileOptions.TryGetValue("build_metadata.SqlPartial.ClassModifier", out var classModifier);
-                    fileOptions.TryGetValue("build_metadata.SqlPartial.ConstName", out var constName);
-                    fileOptions.TryGetValue("build_metadata.SqlPartial.ConstModifier", out var constModifier);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.Namespace", out var ns);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ClassName", out var className);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ClassModifier", out var classModifier);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ConstName", out var constName);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ConstModifier", out var constModifier);
 
                     optionsProvider.GlobalOptions.TryGetValue("build_property.Nullable", out var nullable);
                     var nullableEnabled = string.Equals(nullable, "enable", StringComparison.OrdinalIgnoreCase);
 
                     // Fallback for namespace/classname if not provided via metadata
                     if (string.IsNullOrEmpty(ns)) ns = "Generated";
-                    if (string.IsNullOrEmpty(className)) className = Path.GetFileNameWithoutExtension(file.Text.Path);
-                    if (string.IsNullOrEmpty(constName)) constName = "SqlQuery";
+                    
+                    if (string.IsNullOrEmpty(className) || string.IsNullOrEmpty(constName))
+                    {
+                        var rawFileName = Path.GetFileNameWithoutExtension(file.Text.Path);
+                        if (rawFileName.Contains("."))
+                        {
+                            var parts = rawFileName.Split(new[] { '.' }, 2);
+                            if (string.IsNullOrEmpty(className)) className = parts[0];
+                            if (string.IsNullOrEmpty(constName)) constName = "Sql" + parts[1];
+                        }
+                        else
+                        {
+                            if (string.IsNullOrEmpty(className)) className = rawFileName;
+                            if (string.IsNullOrEmpty(constName)) constName = "SqlQuery";
+                        }
+                    }
 
                     results.Add(new SqlItem(
                         file.Text.Path,
