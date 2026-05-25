@@ -17,12 +17,11 @@ Generated output:
 ```csharp
 partial class UserRepo
 {
-    private static readonly SqlStrings SqlGetById = new SqlStrings
-    {
-        AnsiSql    = @"SELECT id, name FROM users WHERE id = @id",
-        PostgreSql = @"SELECT id, name FROM users WHERE id = $1",
-        SqlServer  = @"SELECT id, name FROM users WHERE id = @id",
-    };
+    private static readonly SqlStrings SqlGetById = new SqlStrings(
+        @"SELECT id, name FROM users WHERE id = @id",
+        postgresql: @"SELECT id, name FROM users WHERE id = $1",
+        sqlserver:  @"SELECT id, name FROM users WHERE id = @id"
+    );
 }
 ```
 
@@ -31,6 +30,9 @@ Runtime usage:
 ```csharp
 // providerName comes from appsettings, e.g. "PostgreSql"
 var sql = UserRepo.SqlGetById.Get(providerName);
+
+// For single-DBMS projects, use implicit conversion (returns AnsiSql)
+string sqlSimple = UserRepo.SqlGetById;
 ```
 
 ---

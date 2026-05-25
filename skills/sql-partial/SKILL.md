@@ -144,9 +144,16 @@ namespace MyApp
 {
     public readonly struct SqlStrings
     {
-        public string AnsiSql { get; init; }
-        public string? PostgreSql { get; init; }
-        public string? SqlServer { get; init; }
+        public string AnsiSql { get; }
+        public string? PostgreSql { get; }
+        public string? SqlServer { get; }
+
+        public SqlStrings(string ansiSql, string? postgresql = null, string? sqlserver = null)
+        {
+            AnsiSql = ansiSql;
+            PostgreSql = postgresql;
+            SqlServer = sqlserver;
+        }
 
         public string Get(string providerName) { ... }
     }
@@ -157,12 +164,11 @@ namespace MyApp.Data
 {
     partial class UserRepo
     {
-        private static readonly SqlStrings SqlGetById = new SqlStrings
-        {
-            AnsiSql    = @"SELECT ...",   // từ GetById.sql
-            PostgreSql = @"SELECT ...",   // từ GetById.pg.sql
+        private static readonly SqlStrings SqlGetById = new SqlStrings(
+            @"SELECT ...",   // từ GetById.sql
+            postgresql: @"SELECT ..."   // từ GetById.pg.sql
             // SqlServer không có file riêng → fallback về AnsiSql tại runtime
-        };
+        );
     }
 }
 ```
@@ -171,6 +177,9 @@ Runtime:
 ```csharp
 // providerName đọc từ appsettings, ví dụ "PostgreSql"
 var sql = UserRepo.SqlGetById.Get(providerName);
+
+// Nếu project chỉ dùng 1 DBMS, có thể ép kiểu ngầm định sang string (trả về AnsiSql)
+string sqlSimple = UserRepo.SqlGetById;
 ```
 
 ---

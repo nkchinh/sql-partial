@@ -70,15 +70,34 @@ namespace TD.SqlPartial.Tests
                 null,
                 true);
 
-            var source = SourceBuilder.BuildSqlStringsStruct(config);
+            var source = SourceBuilder.BuildSqlStringsStruct(config, true);
 
             Assert.Contains("#nullable enable", source);
             Assert.Contains("namespace MyProject.Sql", source);
             Assert.Contains("public readonly struct SqlStrings", source);
-            Assert.Contains("public string AnsiSql { get; init; }", source);
-            Assert.Contains("public string? PostgreSql { get; init; }", source);
+            Assert.Contains("public string AnsiSql { get; }", source);
+            Assert.Contains("public string? PostgreSql { get; }", source);
+            Assert.Contains("public SqlStrings(string ansiSql, string? postgresql = null)", source);
+            Assert.Contains("public static implicit operator string(SqlStrings s) => s.AnsiSql;", source);
             Assert.Contains("case \"PostgreSql\":", source);
             Assert.Contains("return PostgreSql ?? AnsiSql;", source);
+        }
+
+        [Fact]
+        public void SourceBuilder_BuildSqlStringsStruct_ShouldNotEmitNullableOnOldCSharp()
+        {
+            var config = new GeneratorConfig(
+                "MyProject",
+                [new SqlProvider("pg", "PostgreSql")],
+                "MyProject.Sql",
+                null,
+                true);
+
+            var source = SourceBuilder.BuildSqlStringsStruct(config, false);
+
+            Assert.DoesNotContain("#nullable", source);
+            Assert.Contains("public string PostgreSql { get; }", source);
+            Assert.Contains("public SqlStrings(string ansiSql, string postgresql = null)", source);
         }
 
         [Fact]
@@ -107,14 +126,15 @@ namespace TD.SqlPartial.Tests
                 "MyProject.Repos",
                 "UserRepo",
                 groups,
-                config);
+                config,
+                true);
 
             Assert.Contains("#nullable disable", source);
             Assert.Contains("namespace MyProject.Repos", source);
             Assert.Contains("partial class UserRepo", source);
-            Assert.Contains("private static readonly MyProject.Sql.SqlStrings SqlGetUsers = new MyProject.Sql.SqlStrings", source);
-            Assert.Contains("AnsiSql = @\"SELECT 1;\"", source);
-            Assert.Contains("PostgreSql = @\"SELECT 2;\"", source);
+            Assert.Contains("private static readonly MyProject.Sql.SqlStrings SqlGetUsers = new MyProject.Sql.SqlStrings(", source);
+            Assert.Contains("@\"SELECT 1;\"", source);
+            Assert.Contains("postgresql: @\"SELECT 2;\"", source);
         }
 
         [Fact]
@@ -137,9 +157,10 @@ namespace TD.SqlPartial.Tests
                 "MyProject.Repos",
                 "UserRepo",
                 groups,
-                config);
+                config,
+                true);
 
-            Assert.Contains("private static readonly Shared.SqlStrings SqlGetUsers = new Shared.SqlStrings", source);
+            Assert.Contains("private static readonly Shared.SqlStrings SqlGetUsers = new Shared.SqlStrings(", source);
         }
 
         [Theory]

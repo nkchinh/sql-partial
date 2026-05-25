@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using TD.SqlPartial.Generator.Core;
 using TD.SqlPartial.Generator.Models;
@@ -21,6 +21,17 @@ namespace TD.SqlPartial.Generator
             var config = context.AnalyzerConfigOptionsProvider
                 .Select(static (options, _) => ConfigParser.Parse(options));
 
+            // ── Language version detection (nullable support) ───────────────
+            var supportsNullable = context.ParseOptionsProvider
+                .Select(static (options, _) =>
+                {
+                    if (options is CSharpParseOptions csOptions)
+                    {
+                        return csOptions.LanguageVersion >= LanguageVersion.CSharp8;
+                    }
+                    return false;
+                });
+
             // ── Collect project directory (needed for namespace derivation) ──
             var projectDir = context.AnalyzerConfigOptionsProvider
                 .Select(static (options, _) =>
@@ -30,10 +41,6 @@ namespace TD.SqlPartial.Generator
                 });
 
             // ── AdditionalFiles: only .sql files marked as SqlPartial ────────
-            // User declares in .csproj:
-            //   <AdditionalFiles Include="**/*.*.sql">
-            //       <SourceItemType>SqlPartial</SourceItemType>
-            //   </AdditionalFiles>
             var sqlFiles = context.AdditionalTextsProvider
                 .Where(static f => f.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
                 .Combine(context.AnalyzerConfigOptionsProvider)
@@ -80,30 +87,32 @@ namespace TD.SqlPartial.Generator
                         ))
                 );
 
-            // ── Collect groups per class and combine with config ─────────────
+            // ── Collect groups per class and combine with config + nullable ──
             var classBatches = groups
                 .Collect()
-                .Combine(config)
+                .Combine(config.Combine(supportsNullable))
                 .SelectMany(static (tuple, _) =>
                 {
-                    var (allGroups, cfg) = tuple;
+                    var (allGroups, (cfg, nullableSupport)) = tuple;
                     return allGroups
                         .GroupBy(g => (g.Namespace, g.ClassName))
                         .Select(g => (
                             Namespace: g.Key.Namespace,
                             ClassName: g.Key.ClassName,
                             Groups: g.ToImmutableArray(),
-                            Config: cfg
+                            Config: cfg,
+                            SupportsNullable: nullableSupport
                         ));
                 });
 
             // ── Emit SqlStrings struct (once, if not external) ───────────────
-            context.RegisterSourceOutput(config, static (ctx, cfg) =>
+            context.RegisterSourceOutput(config.Combine(supportsNullable), static (ctx, tuple) =>
             {
+                var (cfg, nullableSupport) = tuple;
                 if (cfg.ExternalSqlStringsType is not null) return;
                 try
                 {
-                    var source = SourceBuilder.BuildSqlStringsStruct(cfg);
+                    var source = SourceBuilder.BuildSqlStringsStruct(cfg, nullableSupport);
                     ctx.AddSource(SqlStringsHintName, SourceText.From(source, Encoding.UTF8));
                 }
                 catch (Exception ex)
@@ -121,7 +130,8 @@ namespace TD.SqlPartial.Generator
                         batch.Namespace,
                         batch.ClassName,
                         batch.Groups,
-                        batch.Config);
+                        batch.Config,
+                        batch.SupportsNullable);
 
                     var hash = GetHash($"{batch.Namespace}.{batch.ClassName}");
                     var hintName = $"{batch.ClassName}.{hash}.g.cs";

@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace TD.SqlPartial.Tests
 {
     public partial class RealUsageTests
@@ -17,6 +15,10 @@ namespace TD.SqlPartial.Tests
             // Test runtime selection
             Assert.Equal("SELECT 'Postgres Status' FROM System;", sqlStrings.Get("PostgreSql"));
             Assert.Equal("SELECT 'Ansi Status' FROM System;", sqlStrings.Get("Unknown"));
+
+            // Test implicit conversion (returns AnsiSql)
+            string sqlString = sqlStrings;
+            Assert.Equal("SELECT 'Ansi Status' FROM System;", sqlString);
         }
     }
 }

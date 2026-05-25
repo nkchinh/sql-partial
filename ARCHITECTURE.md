@@ -122,7 +122,14 @@ Các khai báo này trong `.targets` cho phép generator đọc MSBuild properti
 
 ### `SqlStrings` struct
 
-Sinh một lần per project. Struct là `readonly` để đảm bảo immutability. Property `AnsiSql` luôn có mặt; các provider property là `string?` để phân biệt "chưa có SQL riêng" với "SQL rỗng".
+Sinh một lần per project. Struct là `readonly` để đảm bảo immutability. Property `AnsiSql` luôn có mặt; các provider property là `string?` (hoặc `string` tùy phiên bản C#) để phân biệt "chưa có SQL riêng" với "SQL rỗng".
+
+**Tính năng đặc biệt**:
+- **Tương thích ngược**: Generator tự động phát hiện phiên bản C# của project. Nếu C# < 8.0, generator sẽ không emit các chỉ thị `#nullable` và dùng `string` thay cho `string?`.
+- **Implicit conversion**: Struct `SqlStrings` có thể ép kiểu ngầm định sang `string`, kết quả trả về luôn là `AnsiSql`. Điều này giúp code gọn hơn khi project chỉ dùng một DBMS duy nhất.
+
+Tất cả các property đều dùng `{ get; }` (getter-only) và được khởi tạo thông qua constructor để tương thích ngược với C# 7.3.
+
 
 Phương thức `Get(string providerName)` dùng `switch` trên display name (không phải slug) vì đây là giá trị người dùng cấu hình trong appsettings — ví dụ `"PostgreSql"` chứ không phải `"pg"`.
 
