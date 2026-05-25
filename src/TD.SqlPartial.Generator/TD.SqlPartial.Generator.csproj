@@ -10,7 +10,7 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
 
     <PackageId>TD.SqlPartial.Tool</PackageId>
-    <Version>1.1.0-alpha</Version>
+    <Version>1.1.0-alpha.10</Version>
     <Authors>chinhnk</Authors>
     <Description>Source Generator for generating partial classes from SQL files with configurable modifiers. Modern replacement for MSBuild task version.</Description>
     <PackageTags>sqlpartial;sourcegenerator;dotnet;sql;tool</PackageTags>

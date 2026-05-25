@@ -6,25 +6,57 @@
         </SqlPartial>
     </ItemDefinitionGroup>
 
-    <Target Name="_InjectSqlPartialAsAdditionalFiles" BeforeTargets="GenerateMSBuildEditorConfigFileShouldRun;GenerateMSBuildEditorConfigFile">
-        <ItemGroup>
-            <AdditionalFiles Include="@(SqlPartial)"
-                             SourceItemType="SqlPartial"
-                             Namespace="$(RootNamespace).$([System.String]::Copy(%(SqlPartial.RelativeDir)).Replace('/', '.').Replace('\', '.').TrimEnd('.'))"
-                             ClassName="$([System.IO.Path]::GetFileNameWithoutExtension(%(SqlPartial.Filename)))"
-                             ConstName="Sql$([System.String]::Copy(%(SqlPartial.Filename)).Split('.', 2)[1])" />
-        </ItemGroup>
-    </Target>
+    <!-- Tell Visual Studio / MSBuild that SqlPartial is a valid item type -->
+    <ItemGroup>
+        <AvailableItemName Include="SqlPartial" />
+    </ItemGroup>
 
-    <!-- Source Generator automatically picks up AdditionalFiles.
-         We use compiler visible metadata to pass parameters. -->
+    <!--
+        Register SqlPartial as an AdditionalFile item name so the Roslyn file-watcher
+        tracks content changes (add / edit / delete) and re-runs the generator.
+        Without this, VS only re-triggers on .cs edits.
+    -->
+    <ItemGroup>
+        <AdditionalFileItemNames Include="SqlPartial" />
+    </ItemGroup>
+
+    <!--
+        Force the fast up-to-date check (FUTDC) in VS to invalidate the build
+        whenever any .sql file changes, is added, or is deleted.
+        Using Set="SqlPartial" keeps these inputs in their own bucket so FUTDC
+        does not conflate them with other AdditionalFiles.
+    -->
+    <ItemGroup>
+        <UpToDateCheckInput Include="@(SqlPartial)" Set="SqlPartial" />
+    </ItemGroup>
+
+    <!-- 
+        Declare AdditionalFiles at the root level so IDE file-watchers pick them up instantly.
+        We compute the metadata here to ensure 100% backward compatibility with MSBuild-style namespace resolution.
+    -->
+    <ItemGroup>
+        <AdditionalFiles Include="@(SqlPartial)">
+            <SourceItemType>SqlPartial</SourceItemType>
+            <!-- Compute Namespace: $(RootNamespace).$(RelativeDir) replaced slashes with dots, and trimmed trailing dots -->
+            <SqlNamespace>$([System.String]::Concat($(RootNamespace), '.', $([System.String]::Copy(%(RelativeDir)).Replace('/', '.').Replace('\', '.').TrimEnd('.'))).TrimEnd('.'))</SqlNamespace>
+            <!-- ClassName: FileName without extension — %(Filename) = "ClassName.ConstName" for "ClassName.ConstName.sql" -->
+            <SqlClassName>$([System.IO.Path]::GetFileNameWithoutExtension(%(Filename)))</SqlClassName>
+            <!-- ConstName: "Sql" + part after first dot in %(Filename), e.g. "ConstName" → "SqlConstName" -->
+            <SqlConstName>Sql$([System.String]::Copy(%(Filename)).Split('.', 2)[1])</SqlConstName>
+
+            <SqlClassModifier>%(ClassModifier)</SqlClassModifier>
+            <SqlConstModifier>%(ConstModifier)</SqlConstModifier>
+        </AdditionalFiles>
+    </ItemGroup>
+
+    <!-- Make metadata available to the C# Source Generator -->
     <ItemGroup>
         <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SourceItemType" />
-        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="Namespace" />
-        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ClassName" />
-        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ClassModifier" />
-        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ConstName" />
-        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="ConstModifier" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SqlNamespace" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SqlClassName" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SqlClassModifier" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SqlConstName" />
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SqlConstModifier" />
 
         <CompilerVisibleProperty Include="Nullable" />
     </ItemGroup>

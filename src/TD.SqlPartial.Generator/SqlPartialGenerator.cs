@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Immutable;
 using System.IO;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -15,77 +13,90 @@ namespace TD.SqlPartial.Generator
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            // Watch for .sql files in AdditionalFiles
             var sqlFiles = context.AdditionalTextsProvider
                 .Where(static file => file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
 
-            var provider = sqlFiles.Select(static (text, cancellationToken) =>
-            {
-                var content = text.GetText(cancellationToken)?.ToString();
-                return new { Text = text, Content = content };
-            });
+            // Read options ONCE into a provider — this is stable and won't change per-file
+            var optionsProvider = context.AnalyzerConfigOptionsProvider;
 
-            var metadata = context.AnalyzerConfigOptionsProvider.Combine(provider.Collect());
-
-            var items = metadata.SelectMany(static (tuple, cancellationToken) =>
-            {
-                var optionsProvider = tuple.Left;
-                var files = tuple.Right;
-                var results = ImmutableArray.CreateBuilder<SqlItem>();
-
-                foreach (var file in files)
+            // Combine file + options, then map to SqlItem.
+            // IMPORTANT: use a proper record (not anonymous type) so Roslyn incremental
+            // caching can compare values correctly and re-run when .sql content changes.
+            var items = sqlFiles
+                .Combine(optionsProvider)
+                .Select(static (tuple, cancellationToken) =>
                 {
-                    if (file.Content == null) continue;
+                    var file = tuple.Left;
+                    var options = tuple.Right;
 
-                    var fileOptions = optionsProvider.GetOptions(file.Text);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.Namespace", out var ns);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ClassName", out var className);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ClassModifier", out var classModifier);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ConstName", out var constName);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.ConstModifier", out var constModifier);
+                    var content = file.GetText(cancellationToken)?.ToString();
+                    if (content == null) return null;
 
-                    optionsProvider.GlobalOptions.TryGetValue("build_property.Nullable", out var nullable);
-                    var nullableEnabled = string.Equals(nullable, "enable", StringComparison.OrdinalIgnoreCase);
+                    var fileOptions = options.GetOptions(file);
 
-                    // Fallback for namespace/classname if not provided via metadata
-                    if (string.IsNullOrEmpty(ns)) ns = "Generated";
-                    
-                    if (string.IsNullOrEmpty(className) || string.IsNullOrEmpty(constName))
+                    // Only process files explicitly marked as SqlPartial
+                    if (!fileOptions.TryGetValue("build_metadata.AdditionalFiles.SourceItemType", out var itemType) ||
+                        !string.Equals(itemType, "SqlPartial", StringComparison.OrdinalIgnoreCase))
                     {
-                        var rawFileName = Path.GetFileNameWithoutExtension(file.Text.Path);
-                        if (rawFileName.Contains("."))
-                        {
-                            var parts = rawFileName.Split(new[] { '.' }, 2);
-                            if (string.IsNullOrEmpty(className)) className = parts[0];
-                            if (string.IsNullOrEmpty(constName)) constName = "Sql" + parts[1];
-                        }
-                        else
-                        {
-                            if (string.IsNullOrEmpty(className)) className = rawFileName;
-                            if (string.IsNullOrEmpty(constName)) constName = "SqlQuery";
-                        }
+                        return null;
                     }
 
-                    results.Add(new SqlItem(
-                        file.Text.Path,
-                        Path.GetFileName(file.Text.Path),
-                        file.Content,
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlNamespace", out var ns);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlClassName", out var className);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlClassModifier", out var classModifier);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlConstName", out var constName);
+                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlConstModifier", out var constModifier);
+
+                    options.GlobalOptions.TryGetValue("build_property.Nullable", out var nullable);
+                    var nullableEnabled = string.Equals(nullable, "enable", StringComparison.OrdinalIgnoreCase);
+
+                    if (string.IsNullOrEmpty(ns)) ns = "Generated";
+                    if (string.IsNullOrEmpty(className)) className = Path.GetFileNameWithoutExtension(file.Path);
+                    if (string.IsNullOrEmpty(constName)) constName = "SqlQuery";
+
+                    return new SqlItem(
+                        file.Path,
+                        Path.GetFileName(file.Path),
+                        content,
                         ns!,
                         className!,
                         classModifier,
                         constName!,
                         constModifier,
                         nullableEnabled
-                    ));
-                }
-                return results.ToImmutable();
-            });
+                    );
+                })
+                .Where(static item => item != null);
 
             context.RegisterSourceOutput(items, static (productionContext, item) =>
             {
-                var source = SourceBuilder.Build(item!);
-                var fileName = $"{Path.GetFileNameWithoutExtension(item!.FilePath)}.g.cs";
-                productionContext.AddSource(fileName, SourceText.From(source, Encoding.UTF8));
+                try
+                {
+                    var source = SourceBuilder.Build(item!);
+                    var hash = GetDeterministicHash(item!.FilePath);
+                    var fileName = $"{Path.GetFileNameWithoutExtension(item.FilePath)}.{hash}.g.cs";
+                    productionContext.AddSource(fileName, SourceText.From(source, Encoding.UTF8));
+                }
+                catch (Exception ex)
+                {
+                    var descriptor = new DiagnosticDescriptor(
+                        "SQLGEN001", "Generator Error", ex.Message,
+                        "Error", DiagnosticSeverity.Error, true);
+                    productionContext.ReportDiagnostic(Diagnostic.Create(descriptor, null));
+                }
             });
+        }
+
+        private static string GetDeterministicHash(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "0";
+            uint hash = 2166136261;
+            foreach (char c in input)
+            {
+                hash = (hash ^ c) * 16777619;
+            }
+            return hash.ToString("X8");
         }
     }
 }
