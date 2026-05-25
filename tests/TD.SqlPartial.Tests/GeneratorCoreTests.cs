@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using TD.SqlPartial.Generator.Core;
 using TD.SqlPartial.Generator.Models;
 
@@ -6,27 +7,43 @@ namespace TD.SqlPartial.Tests
     public class GeneratorCoreTests
     {
         [Fact]
-        public void SqlCleaner_ShouldStripTestPartAndWholeLineCommentsButPreserveTrailingOnes()
+        public void SqlCleaner_ShouldStripTestPartBlocks()
         {
             var sql = """
+                --#testpart
+                SELECT * FROM Secret1;
+                --/testpart
+                SELECT * FROM Users;
                 -- #testpart
-                SELECT * FROM Secret;
-                -- /testpart
+                SELECT * FROM Secret2;
+                --  /testpart
+                SELECT * FROM Products;
+                """;
+
+            var cleaned = SqlContentCleaner.Clean(sql);
+
+            Assert.DoesNotContain("Secret1", cleaned);
+            Assert.DoesNotContain("Secret2", cleaned);
+            Assert.Contains("SELECT * FROM Users;", cleaned);
+            Assert.Contains("SELECT * FROM Products;", cleaned);
+        }
+
+        [Fact]
+        public void SqlCleaner_ShouldStripWholeLineCommentsButPreserveTrailingOnes()
+        {
+            var sql = """
                     SELECT * FROM Users; -- some comment
                 -- another comment
                 SELECT 'a -- b';
                 """;
 
-            var cleaned = SqlCleaner.Clean(sql);
+            var cleaned = SqlContentCleaner.Clean(sql);
 
-            // Should NOT contain Secret
-            Assert.DoesNotContain("Secret", cleaned);
+            // Should preserve indentation of active lines
+            // and trailing comments on active lines
+            Assert.Contains("    SELECT * FROM Users; -- some comment", cleaned);
 
-            // Should preserve indentation (except immediately after #testpart due to aggressive original regex)
-            // and trailing comments on active lines (original logic)
-            Assert.Contains("SELECT * FROM Users; -- some comment", cleaned);
-
-            // Should correctly handle -- inside strings (original logic)
+            // Should correctly handle -- inside strings
             Assert.Contains("SELECT 'a -- b';", cleaned);
 
             // Should NOT contain standalone comments
@@ -34,41 +51,119 @@ namespace TD.SqlPartial.Tests
         }
 
         [Fact]
-        public void SourceBuilder_ShouldHandleNullableEnable()
+        public void SqlCleaner_ShouldEscapeDoubleQuotesForVerbatimString()
         {
-            var item = new SqlItem(
-                "test.sql", "test.sql", "SELECT 1;", "MyNamespace", "MyClass",
-                null, "SqlTest", "public", true);
+            var sql = "SELECT * FROM \"Users\" WHERE Name = 'O\"Reilly';";
+            var cleaned = SqlContentCleaner.Clean(sql);
 
-            var source = SourceBuilder.Build(item);
+            // Verbatim string in C# escapes " as ""
+            Assert.Equal("SELECT * FROM \"\"Users\"\" WHERE Name = 'O\"\"Reilly';", cleaned);
+        }
+
+        [Fact]
+        public void SourceBuilder_BuildSqlStringsStruct_ShouldGenerateCorrectStruct()
+        {
+            var config = new GeneratorConfig(
+                "MyProject",
+                [new SqlProvider("pg", "PostgreSql")],
+                "MyProject.Sql",
+                null,
+                true);
+
+            var source = SourceBuilder.BuildSqlStringsStruct(config);
 
             Assert.Contains("#nullable enable", source);
+            Assert.Contains("namespace MyProject.Sql", source);
+            Assert.Contains("public readonly struct SqlStrings", source);
+            Assert.Contains("public string AnsiSql { get; init; }", source);
+            Assert.Contains("public string? PostgreSql { get; init; }", source);
+            Assert.Contains("case \"PostgreSql\":", source);
+            Assert.Contains("return PostgreSql ?? AnsiSql;", source);
         }
 
         [Fact]
-        public void SourceBuilder_ShouldOmitClassModifierWhenNull()
+        public void SourceBuilder_BuildPartialClass_ShouldGenerateCorrectProperties()
         {
-            var item = new SqlItem(
-                "test.sql", "test.sql", "SELECT 1;", "MyNamespace", "MyClass",
-                null, "SqlTest", "public", false);
+            var config = new GeneratorConfig(
+                "MyProject",
+                [new SqlProvider("pg", "PostgreSql")],
+                "MyProject.Sql",
+                null,
+                false);
 
-            var source = SourceBuilder.Build(item);
+            var contentBySlug = new Dictionary<string, string>
+            {
+                { "an", "SELECT 1;" },
+                { "pg", "SELECT 2;" }
+            }.ToImmutableDictionary();
 
-            Assert.Contains("partial class MyClass", source);
-            Assert.DoesNotContain("public partial class MyClass", source);
-            Assert.DoesNotContain("internal partial class MyClass", source);
+            var groups = ImmutableArray.Create(new SqlQueryGroup(
+                "MyProject.Repos",
+                "UserRepo",
+                "GetUsers",
+                contentBySlug));
+
+            var source = SourceBuilder.BuildPartialClass(
+                "MyProject.Repos",
+                "UserRepo",
+                groups,
+                config);
+
+            Assert.Contains("#nullable disable", source);
+            Assert.Contains("namespace MyProject.Repos", source);
+            Assert.Contains("partial class UserRepo", source);
+            Assert.Contains("private static readonly MyProject.Sql.SqlStrings GetUsers = new MyProject.Sql.SqlStrings", source);
+            Assert.Contains("AnsiSql = @\"SELECT 1;\"", source);
+            Assert.Contains("PostgreSql = @\"SELECT 2;\"", source);
         }
 
         [Fact]
-        public void SourceBuilder_ShouldUseClassModifierWhenProvided()
+        public void SourceBuilder_BuildPartialClass_ShouldUseExternalStringsType()
         {
-            var item = new SqlItem(
-                "test.sql", "test.sql", "SELECT 1;", "MyNamespace", "MyClass",
-                "internal", "SqlTest", "public", false);
+            var config = new GeneratorConfig(
+                "MyProject",
+                [],
+                "MyProject.Sql",
+                "Shared.SqlStrings",
+                true);
 
-            var source = SourceBuilder.Build(item);
+            var groups = ImmutableArray.Create(new SqlQueryGroup(
+                "MyProject.Repos",
+                "UserRepo",
+                "GetUsers",
+                new Dictionary<string, string> { { "an", "SELECT 1;" } }.ToImmutableDictionary()));
 
-            Assert.Contains("internal partial class MyClass", source);
+            var source = SourceBuilder.BuildPartialClass(
+                "MyProject.Repos",
+                "UserRepo",
+                groups,
+                config);
+
+            Assert.Contains("private static readonly Shared.SqlStrings GetUsers = new Shared.SqlStrings", source);
+        }
+
+        [Theory]
+        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "an")]
+        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.pg.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "pg")]
+        [InlineData(@"C:\Proj\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj", "UserRepo", "GetUsers", "an")]
+        public void FilePathParser_ShouldParseCorrectly(
+            string path, string rootNs, string projDir,
+            string expectedNs, string expectedClass, string expectedQuery, string expectedSlug)
+        {
+            var result = FilePathParser.TryParse(path, rootNs, projDir);
+
+            Assert.NotNull(result);
+            Assert.Equal(expectedNs, result.Value.ns);
+            Assert.Equal(expectedClass, result.Value.className);
+            Assert.Equal(expectedQuery, result.Value.queryName);
+            Assert.Equal(expectedSlug, result.Value.providerSlug);
+        }
+
+        [Fact]
+        public void FilePathParser_ShouldReturnNullOnInvalidFilename()
+        {
+            var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj");
+            Assert.Null(result);
         }
     }
 }

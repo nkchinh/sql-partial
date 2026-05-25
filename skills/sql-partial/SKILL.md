@@ -1,249 +1,254 @@
 ---
 name: sql-partial
-description: Guide for working with SQL Partial tool - a code generator that converts .sql files into C# partial classes containing SQL query constants. Use when creating request handlers with SQL queries, organizing complex SQL in separate files, testing SQL queries directly in SQL editor, or managing SQL queries using the SqlPartial pattern in .NET projects.
-license: MIT
+description: |
+  Hướng dẫn agent tạo và quản lý SQL partial files cho dự án dùng TD.SqlPartial.Generator.
+  Dùng skill này bất cứ khi nào người dùng muốn:
+  - Thêm SQL query mới vào một class (tạo file .sql)
+  - Thêm provider-specific SQL cho một query đã có (pg, ms, my...)
+  - Cấu hình TD.SqlPartial.Generator trong .csproj
+  - Kiểm tra cấu trúc file .sql có đúng convention không
+  - Xem danh sách queries đang có trong project
+  - Tái cấu trúc SQL files (đổi tên, di chuyển, thêm provider)
+  Trigger ngay khi thấy đề cập đến: sql partial, SqlStrings, query file, .sql generator, DBMS provider, AnsiSql.
 ---
 
-# SQL Partial
+# TD.SqlPartial.Generator Skill
 
-## Overview
+## Tổng quan nhanh
 
-SQL Partial is a .NET code generator tool that automatically creates C# partial classes containing string constants from `.sql` files. This enables better SQL organization, type-safe references, and testability.
+Generator biến `.sql` files thành `static readonly SqlStrings` properties trên `partial class`.
+Người dùng gọi `MyClass.GetUser.Get("PostgreSql")` tại runtime — generator lo phần còn lại.
 
-**Key benefits:**
-- Keep SQL queries in separate `.sql` files with proper syntax highlighting
-- Access SQL queries as C# constants in your code
-- Test SQL directly in SQL editor with `#testpart` directives (auto-removed during build)
-- Separate SQL logic from C# business logic
+---
 
-## When to Use This Skill
+## Quy ước tên file (QUAN TRỌNG)
 
-Use when:
-- Creating new request handlers that need SQL queries
-- Organizing complex SQL queries in separate files
-- Working with Dapper or raw SQL in .NET projects
-- Testing SQL queries directly in SQL editor before using in code
-
-## Quick Start
-
-### 1. File Naming Convention
-
-SQL Partial files follow this pattern: `{ClassName}.{Suffix}.sql`
-
-**Example:** `CreateProductRequestHandler.Command.sql`
-- **ClassName**: Must match C# class name exactly
-- **Suffix**: Describes query purpose (`Command`, `Query`, `Update`, etc.)
-- **Generated constant**: `SqlCommand`, `SqlQuery`, `SqlUpdate`
-
-### 2. Basic SQL File Structure
-
-```sql
--- Description of what this SQL does
-
--- #testpart
-DECLARE @Id UNIQUEIDENTIFIER = '00000000-0000-0000-0000-000000000000';
-DECLARE @Name NVARCHAR(200) = 'Test Product';
--- /testpart
-
-SELECT * FROM [dbo].[Products] WHERE [Id] = @Id;
+```
+ClassName.QueryName.sql          ← ANSI SQL, dùng chung cho mọi DBMS
+ClassName.QueryName.an.sql       ← Giống trên, explicit
+ClassName.QueryName.pg.sql       ← PostgreSQL override
+ClassName.QueryName.ms.sql       ← SQL Server override
+ClassName.QueryName.my.sql       ← MySQL override
 ```
 
-**Key feature:** `#testpart` / `/testpart` block allows testing SQL directly in SQL editor. This block is automatically removed during build.
+- **ClassName** phải khớp chính xác tên `partial class` (case-sensitive)
+- **QueryName** trở thành tên property trên class
+- **Slug** phải khớp một slug trong `SqlPartialProviders` của project, hoặc `an`
 
-### 3. Use in C# Code
+File đặt trong cùng thư mục với class → namespace khớp tự động.
+File đặt trong thư mục con → namespace = `RootNamespace.TênThưMụcCon`.
+
+---
+
+## Workflow: thêm SQL mới
+
+### Bước 1 — Thu thập thông tin
+
+Hỏi người dùng (hoặc suy ra từ context) 4 thứ:
+1. **ClassName** — class nào sẽ chứa query?
+2. **QueryName** — tên property mong muốn?
+3. **Provider** — ANSI chung hay provider-specific? Nếu specific thì slug nào?
+4. **Nội dung SQL** — người dùng cung cấp hay cần soạn?
+
+### Bước 2 — Xác định thư mục
+
+```bash
+# Tìm file .csproj để biết project root
+find . -name "*.csproj" -not -path "*/obj/*" | head -5
+
+# Tìm class đích để biết nó nằm ở đâu
+find . -name "ClassName.cs" -not -path "*/obj/*"
+```
+
+File `.sql` phải đặt cùng thư mục với class để namespace khớp.
+
+### Bước 3 — Kiểm tra cấu hình project
+
+```bash
+# Kiểm tra SqlPartialProviders và AdditionalFiles đã cấu hình chưa
+grep -A5 "SqlPartialProviders\|SqlPartial\|AdditionalFiles.*sql" *.csproj
+```
+
+Nếu chưa có cấu hình → xem phần **Cấu hình .csproj** bên dưới.
+
+### Bước 4 — Tạo file
+
+Tạo file đúng tên convention, đặt đúng thư mục. SQL content cần:
+- Xóa comment giải thích nếu người dùng không muốn giữ (generator tự strip `--` comments)
+- Giữ `--#testpart … --/testpart` nếu có đoạn SQL chỉ dùng cho test
+
+### Bước 5 — Xác nhận partial class tồn tại
+
+```bash
+grep -r "partial class ClassName" --include="*.cs" -l
+```
+
+Nếu chưa có → nhắc người dùng tạo hoặc thêm `partial` keyword vào class hiện tại.
+
+---
+
+## Cấu hình .csproj
+
+Khi project chưa có cấu hình, thêm vào `.csproj`:
+
+```xml
+<PropertyGroup>
+    <!-- Khai báo DBMS providers: slug:DisplayName, phân cách bằng ; -->
+    <!-- ANSI SQL luôn có sẵn, không cần khai báo -->
+    <SqlPartialProviders>pg:PostgreSql;ms:SqlServer</SqlPartialProviders>
+</PropertyGroup>
+
+<ItemGroup>
+    <!-- Include trực tiếp làm AdditionalFiles — KHÔNG dùng custom item type trung gian -->
+    <AdditionalFiles Include="**/*.*.sql" Exclude="obj/**/*;bin/**/*">
+        <SourceItemType>SqlPartial</SourceItemType>
+    </AdditionalFiles>
+</ItemGroup>
+```
+
+**Lưu ý quan trọng**: pattern `**/*.*.sql` (hai dấu chấm) đảm bảo file phải có ít nhất `ClassName.QueryName.sql` — tránh nhặt file SQL không liên quan chỉ có một tên đơn.
+
+### Tùy chọn: namespace cho SqlStrings struct
+
+```xml
+<PropertyGroup>
+    <!-- Mặc định: RootNamespace -->
+    <SqlPartialStringsNamespace>MyCompany.Data</SqlPartialStringsNamespace>
+</PropertyGroup>
+```
+
+### Tùy chọn: dùng SqlStrings từ project khác
+
+```xml
+<PropertyGroup>
+    <!-- Khi set, generator KHÔNG sinh SqlStrings struct trong project này -->
+    <SqlPartialStringsType>MyCompany.Core.SqlStrings</SqlPartialStringsType>
+</PropertyGroup>
+```
+
+---
+
+## Kết quả sinh ra
+
+Với cấu hình `SqlPartialProviders=pg:PostgreSql;ms:SqlServer` và các file:
+```
+Data/UserRepo.GetById.sql
+Data/UserRepo.GetById.pg.sql
+```
+
+Generator sinh:
 
 ```csharp
-public partial class CreateProductRequestHandler(IDbRepository repository)
-    : IRequestHandler<CreateProductRequest, Result<Guid>>
+// SqlStrings.g.cs
+namespace MyApp
 {
-    public async Task<Result<Guid>> Handle(...)
+    public readonly struct SqlStrings
     {
-        // Use the generated SqlCommand constant
-        var result = await repository.ExecuteScalarAsync<string>(
-            SqlCommand,  // Auto-generated from .Command.sql file
-            parameters,
-            cancellationToken: cancellationToken);
+        public string AnsiSql { get; init; }
+        public string? PostgreSql { get; init; }
+        public string? SqlServer { get; init; }
 
-        return Result.Success(Guid.Parse(result));
+        public string Get(string providerName) { ... }
+    }
+}
+
+// UserRepo.{hash}.g.cs
+namespace MyApp.Data
+{
+    partial class UserRepo
+    {
+        private static readonly SqlStrings GetById = new SqlStrings
+        {
+            AnsiSql    = @"SELECT ...",   // từ GetById.sql
+            PostgreSql = @"SELECT ...",   // từ GetById.pg.sql
+            // SqlServer không có file riêng → fallback về AnsiSql tại runtime
+        };
     }
 }
 ```
 
-## Configuration
+Runtime:
+```csharp
+// providerName đọc từ appsettings, ví dụ "PostgreSql"
+var sql = UserRepo.GetById.Get(providerName);
+```
 
-Add to your `.csproj` file:
+---
 
+## Kiểm tra và debug
+
+### Xem tất cả SQL files hiện có
+
+```bash
+find . -name "*.*.sql" -not -path "*/obj/*" -not -path "*/bin/*" | sort
+```
+
+### Kiểm tra convention có đúng không
+
+```bash
+# File phải có ít nhất 2 segment trước .sql
+# Đúng:  UserRepo.GetById.sql  |  UserRepo.GetById.pg.sql
+# Sai:   GetById.sql  |  queries.sql
+find . -name "*.sql" -not -path "*/obj/*" | while read f; do
+    base=$(basename "$f" .sql)
+    count=$(echo "$base" | tr -cd '.' | wc -c)
+    if [ "$count" -lt 1 ]; then
+        echo "WARN: $f — thiếu segment, sẽ bị bỏ qua bởi generator"
+    fi
+done
+```
+
+### Bật EmitCompilerGeneratedFiles để xem output
+
+Thêm vào `.csproj` khi cần debug:
 ```xml
-<ItemGroup>
-    <!-- Add the SqlPartial tool package -->
-    <PackageReference Include="TD.SqlPartial.Tool" Version="1.0.3" />
-
-    <!-- Configure SQL Partial for your project structure -->
-    <SqlPartial Include="**/*.*.sql">
-        <ClassModifier>public</ClassModifier>
-        <ConstModifier>private</ConstModifier>
-    </SqlPartial>
-</ItemGroup>
+<PropertyGroup>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+</PropertyGroup>
 ```
 
-## Common Patterns
+File sinh ra tại: `obj/Debug/{tfm}/generated/TD.SqlPartial.Generator/`
 
-### Pattern 1: Command with Error Handling
+### Lỗi thường gặp
 
-**File: `CreateProductRequestHandler.Command.sql`**
+| Triệu chứng | Nguyên nhân | Cách fix |
+|---|---|---|
+| Property không xuất hiện trên class | File `.sql` không match convention | Kiểm tra tên file có đúng `ClassName.QueryName[.slug].sql` |
+| Namespace không khớp class chính | File `.sql` đặt sai thư mục | Di chuyển file `.sql` về cùng thư mục với `.cs` |
+| `SqlStrings` không tìm thấy | Chưa build sau khi thêm file | Build project hoặc lưu file `.cs` bất kỳ để trigger generator |
+| Provider property null | Không có file `.slug.sql` cho provider đó | Đây là behavior đúng — `Get()` tự fallback về `AnsiSql` |
+| Generator không trigger khi sửa .sql | `AdditionalFiles` khai báo sai | Đảm bảo dùng `<AdditionalFiles Include="...">` trực tiếp, không qua custom item type |
 
+---
+
+## Ví dụ đầy đủ
+
+**Yêu cầu**: Thêm query `GetByEmail` cho class `UserRepo`, có SQL riêng cho PostgreSQL.
+
+**Files cần tạo**:
+
+`Data/UserRepo.GetByEmail.sql` (ANSI fallback):
 ```sql
--- Create a new product
--- Returns: Product ID if successful, error code otherwise
-
--- #testpart
-DECLARE @Code NVARCHAR(50) = 'PROD001';
-DECLARE @Name NVARCHAR(200) = 'Test Product';
-DECLARE @CategoryId UNIQUEIDENTIFIER = '00000000-0000-0000-0000-000000000000';
--- /testpart
-
-DECLARE @Result NVARCHAR(50);
-
-IF NOT EXISTS (SELECT 1 FROM [dbo].[Categories] WHERE [Id] = @CategoryId)
-    SET @Result = 'CategoryNotFound'
-ELSE IF EXISTS (SELECT 1 FROM [dbo].[Products] WHERE [Code] = @Code)
-    SET @Result = 'DuplicateCode'
-ELSE
-BEGIN
-    DECLARE @NewId UNIQUEIDENTIFIER = NEWID();
-    INSERT INTO [dbo].[Products] ([Id], [Code], [Name], [CategoryId], [CreatedOn])
-    VALUES (@NewId, @Code, @Name, @CategoryId, GETDATE());
-    SET @Result = CAST(@NewId AS NVARCHAR(50));
-END
-
-SELECT @Result;
+SELECT id, email, name
+FROM users
+WHERE email = @email
 ```
 
-### Pattern 2: Query with JOIN
-
-**File: `GetProductRequestHandler.Query.sql`**
-
+`Data/UserRepo.GetByEmail.pg.sql` (PostgreSQL override):
 ```sql
--- Get product details by ID
-
--- #testpart
-DECLARE @Id UNIQUEIDENTIFIER = '00000000-0000-0000-0000-000000000000';
--- /testpart
-
-SELECT
-    p.[Id], p.[Code], p.[Name],
-    c.[Name] AS [CategoryName]
-FROM [dbo].[Products] p
-INNER JOIN [dbo].[Categories] c ON p.[CategoryId] = c.[Id]
-WHERE p.[Id] = @Id AND p.[DeletedOn] IS NULL;
+SELECT id, email, name
+FROM users
+WHERE email = $1
 ```
 
-### Pattern 3: Multiple SQL Files for One Handler
-
-You can have multiple SQL files for a single handler:
-
+**Kết quả sử dụng**:
+```csharp
+public partial class UserRepo
+{
+    public User? FindByEmail(string email, string dbProvider)
+    {
+        var sql = GetByEmail.Get(dbProvider); // "PostgreSql" hoặc bất kỳ
+        // ... execute sql
+    }
+}
 ```
-ProcessOrderRequestHandler.cs
-ProcessOrderRequestHandler.Validate.sql  → SqlValidate
-ProcessOrderRequestHandler.Update.sql    → SqlUpdate
-ProcessOrderRequestHandler.Log.sql       → SqlLog
-```
-
-## Best Practices
-
-### 1. Always Use Test Parts
-
-Include `#testpart` blocks with realistic test data to enable direct SQL testing:
-
-```sql
--- #testpart
-DECLARE @Id UNIQUEIDENTIFIER = '090fc69d-c63b-4cbf-a253-5e92d9b0439a';
-DECLARE @Period NVARCHAR(30) = '2022';
--- /testpart
-```
-
-### 2. Document SQL Purpose
-
-Start each SQL file with clear comments explaining what it does and what it returns:
-
-```sql
--- Create a new report and return its ID
--- Returns:
---   - Report ID (GUID as string) if successful
---   - 'TemplateId' if template not found
-```
-
-### 3. Use Meaningful Suffixes
-
-Choose suffixes that clearly indicate the SQL purpose:
-- `.Query.sql` - SELECT queries
-- `.Command.sql` - INSERT/UPDATE/DELETE with complex logic
-- `.Update.sql` - UPDATE operations
-- `.Validate.sql` - Validation queries
-
-### 4. Handle Errors in SQL
-
-Return error codes or messages from SQL for better error handling:
-
-```sql
-DECLARE @Result NVARCHAR(50);
-
-IF NOT EXISTS (SELECT 1 FROM [Table] WHERE [Id] = @Id)
-    SET @Result = 'NotFound'
-ELSE
-BEGIN
-    -- Perform operation
-    SET @Result = NULL; -- Success
-END
-
-SELECT @Result;
-```
-
-
-
-## Troubleshooting
-
-### SQL constant not generated
-
-**Causes:**
-- File naming doesn't match pattern `{ClassName}.{Suffix}.sql`
-- Class doesn't exist or isn't marked as `partial`
-- SqlPartial not configured in `.csproj`
-
-**Solution:**
-- Verify file name matches class name exactly
-- Ensure class is declared as `partial`
-- Check `.csproj` has `<SqlPartial Include="...">` for the file path
-- Rebuild the project
-
-### Build errors with SQL syntax
-
-**Solution:**
-- Test SQL file directly in SQL editor first
-- Check for unclosed strings or comments
-- Verify all parameters are declared in `#testpart`
-
-### Test part not removed
-
-**Solution:**
-- Use exact syntax: `-- #testpart` and `-- /testpart`
-- Ensure directives are on separate lines
-- No extra spaces before `#` or `/`
-
-## Resources
-
-### References
-
-Detailed documentation loaded as needed:
-
-- `references/advanced-patterns.md` - Complex SQL patterns (CTE, MERGE, TVP)
-- `references/configuration-guide.md` - Detailed .csproj configuration options
-- `references/real-world-examples.md` - Complete examples from the codebase
-
-### Scripts
-
-Utility script for working with SQL Partial:
-
-- `scripts/validate_sql.py` - Validate SQL file structure and naming
-
-

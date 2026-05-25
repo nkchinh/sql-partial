@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -11,91 +13,140 @@ namespace TD.SqlPartial.Generator
     [Generator]
     public class SqlPartialGenerator : IIncrementalGenerator
     {
+        private const string SqlStringsHintName = "SqlStrings.g.cs";
+
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            // Watch for .sql files in AdditionalFiles
+            // ── Config (project-level, stable across file edits) ────────────
+            var config = context.AnalyzerConfigOptionsProvider
+                .Select(static (options, _) => ConfigParser.Parse(options));
+
+            // ── Collect project directory (needed for namespace derivation) ──
+            var projectDir = context.AnalyzerConfigOptionsProvider
+                .Select(static (options, _) =>
+                {
+                    options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out var dir);
+                    return dir ?? string.Empty;
+                });
+
+            // ── AdditionalFiles: only .sql files marked as SqlPartial ────────
+            // User declares in .csproj:
+            //   <AdditionalFiles Include="**/*.*.sql">
+            //       <SourceItemType>SqlPartial</SourceItemType>
+            //   </AdditionalFiles>
             var sqlFiles = context.AdditionalTextsProvider
-                .Where(static file => file.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
-
-            // Read options ONCE into a provider — this is stable and won't change per-file
-            var optionsProvider = context.AnalyzerConfigOptionsProvider;
-
-            // Combine file + options, then map to SqlItem.
-            // IMPORTANT: use a proper record (not anonymous type) so Roslyn incremental
-            // caching can compare values correctly and re-run when .sql content changes.
-            var items = sqlFiles
-                .Combine(optionsProvider)
+                .Where(static f => f.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
+                .Combine(context.AnalyzerConfigOptionsProvider)
+                .Where(static tuple =>
+                {
+                    var (file, options) = tuple;
+                    options.GetOptions(file).TryGetValue(
+                        "build_metadata.AdditionalFiles.SourceItemType", out var itemType);
+                    return string.Equals(itemType, "SqlPartial", StringComparison.OrdinalIgnoreCase);
+                })
                 .Select(static (tuple, cancellationToken) =>
                 {
-                    var file = tuple.Left;
-                    var options = tuple.Right;
+                    var (file, _) = tuple;
+                    var content = file.GetText(cancellationToken)?.ToString() ?? string.Empty;
+                    return (FilePath: file.Path, Content: SqlContentCleaner.Clean(content));
+                });
 
-                    var content = file.GetText(cancellationToken)?.ToString();
-                    if (content == null) return null;
+            // ── Parse each file into SqlFile model ───────────────────────────
+            var parsedFiles = sqlFiles
+                .Combine(config.Combine(projectDir))
+                .Select(static (tuple, _) =>
+                {
+                    var ((filePath, content), (cfg, projDir)) = tuple;
+                    var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir);
+                    if (parsed is null) return null;
 
-                    var fileOptions = options.GetOptions(file);
-
-                    // Only process files explicitly marked as SqlPartial
-                    if (!fileOptions.TryGetValue("build_metadata.AdditionalFiles.SourceItemType", out var itemType) ||
-                        !string.Equals(itemType, "SqlPartial", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return null;
-                    }
-
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlNamespace", out var ns);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlClassName", out var className);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlClassModifier", out var classModifier);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlConstName", out var constName);
-                    fileOptions.TryGetValue("build_metadata.AdditionalFiles.SqlConstModifier", out var constModifier);
-
-                    options.GlobalOptions.TryGetValue("build_property.Nullable", out var nullable);
-                    var nullableEnabled = string.Equals(nullable, "enable", StringComparison.OrdinalIgnoreCase);
-
-                    if (string.IsNullOrEmpty(ns)) ns = "Generated";
-                    if (string.IsNullOrEmpty(className)) className = Path.GetFileNameWithoutExtension(file.Path);
-                    if (string.IsNullOrEmpty(constName)) constName = "SqlQuery";
-
-                    return new SqlItem(
-                        file.Path,
-                        Path.GetFileName(file.Path),
-                        content,
-                        ns!,
-                        className!,
-                        classModifier,
-                        constName!,
-                        constModifier,
-                        nullableEnabled
-                    );
+                    var (ns, className, queryName, providerSlug) = parsed.Value;
+                    return new SqlFile(filePath, ns, className, queryName, providerSlug, content);
                 })
-                .Where(static item => item != null);
+                .Where(static f => f is not null);
 
-            context.RegisterSourceOutput(items, static (productionContext, item) =>
+            // ── Collect all files, group into SqlQueryGroup ──────────────────
+            // Grouping must happen after Collect() to see all files together.
+            var groups = parsedFiles
+                .Collect()
+                .SelectMany(static (files, _) =>
+                    files
+                        .GroupBy(f => (f!.Namespace, f.ClassName, f.QueryName))
+                        .Select(g => new SqlQueryGroup(
+                            g.Key.Namespace,
+                            g.Key.ClassName,
+                            g.Key.QueryName,
+                            g.ToImmutableDictionary(f => f!.ProviderSlug, f => f!.Content)
+                        ))
+                );
+
+            // ── Collect groups per class and combine with config ─────────────
+            var classBatches = groups
+                .Collect()
+                .Combine(config)
+                .SelectMany(static (tuple, _) =>
+                {
+                    var (allGroups, cfg) = tuple;
+                    return allGroups
+                        .GroupBy(g => (g.Namespace, g.ClassName))
+                        .Select(g => (
+                            Namespace: g.Key.Namespace,
+                            ClassName: g.Key.ClassName,
+                            Groups: g.ToImmutableArray(),
+                            Config: cfg
+                        ));
+                });
+
+            // ── Emit SqlStrings struct (once, if not external) ───────────────
+            context.RegisterSourceOutput(config, static (ctx, cfg) =>
             {
+                if (cfg.ExternalSqlStringsType is not null) return;
                 try
                 {
-                    var source = SourceBuilder.Build(item!);
-                    var hash = GetDeterministicHash(item!.FilePath);
-                    var fileName = $"{Path.GetFileNameWithoutExtension(item.FilePath)}.{hash}.g.cs";
-                    productionContext.AddSource(fileName, SourceText.From(source, Encoding.UTF8));
+                    var source = SourceBuilder.BuildSqlStringsStruct(cfg);
+                    ctx.AddSource(SqlStringsHintName, SourceText.From(source, Encoding.UTF8));
                 }
                 catch (Exception ex)
                 {
-                    var descriptor = new DiagnosticDescriptor(
-                        "SQLGEN001", "Generator Error", ex.Message,
-                        "Error", DiagnosticSeverity.Error, true);
-                    productionContext.ReportDiagnostic(Diagnostic.Create(descriptor, null));
+                    ReportError(ctx, "SQLGEN001", ex.Message);
+                }
+            });
+
+            // ── Emit one partial class file per (Namespace, ClassName) ───────
+            context.RegisterSourceOutput(classBatches, static (ctx, batch) =>
+            {
+                try
+                {
+                    var source = SourceBuilder.BuildPartialClass(
+                        batch.Namespace,
+                        batch.ClassName,
+                        batch.Groups,
+                        batch.Config);
+
+                    var hash = GetHash($"{batch.Namespace}.{batch.ClassName}");
+                    var hintName = $"{batch.ClassName}.{hash}.g.cs";
+                    ctx.AddSource(hintName, SourceText.From(source, Encoding.UTF8));
+                }
+                catch (Exception ex)
+                {
+                    ReportError(ctx, "SQLGEN002", ex.Message);
                 }
             });
         }
 
-        private static string GetDeterministicHash(string input)
+        private static void ReportError(SourceProductionContext ctx, string id, string message)
         {
-            if (string.IsNullOrEmpty(input)) return "0";
+            var descriptor = new DiagnosticDescriptor(
+                id, "SqlPartial Generator Error", message,
+                "SqlPartial", DiagnosticSeverity.Error, isEnabledByDefault: true);
+            ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location: null));
+        }
+
+        private static string GetHash(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return "00000000";
             uint hash = 2166136261;
-            foreach (char c in input)
-            {
-                hash = (hash ^ c) * 16777619;
-            }
+            foreach (char c in input) hash = (hash ^ c) * 16777619;
             return hash.ToString("X8");
         }
     }
