@@ -7,12 +7,12 @@ namespace TD.SqlPartial.Tests
     public class GeneratorCoreTests
     {
         [Fact]
-        public void SqlCleaner_ShouldStripTestPartBlocks()
+        public void SqlCleaner_ShouldStripExcludeAndTestPartBlocks()
         {
             var sql = """
-                --#testpart
-                SELECT * FROM Secret1;
-                --/testpart
+                --#exclude
+                SELECT * FROM Hidden;
+                --/exclude
                 SELECT * FROM Users;
                 -- #testpart
                 SELECT * FROM Secret2;
@@ -22,7 +22,7 @@ namespace TD.SqlPartial.Tests
 
             var cleaned = SqlContentCleaner.Clean(sql);
 
-            Assert.DoesNotContain("Secret1", cleaned);
+            Assert.DoesNotContain("Hidden", cleaned);
             Assert.DoesNotContain("Secret2", cleaned);
             Assert.Contains("SELECT * FROM Users;", cleaned);
             Assert.Contains("SELECT * FROM Products;", cleaned);

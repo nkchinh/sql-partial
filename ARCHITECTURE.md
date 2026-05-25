@@ -156,7 +156,10 @@ ClassName.QueryName.pg.sql       → providerSlug = "pg"
 ## Xử lý SQL content — `SqlContentCleaner`
 
 Thực hiện theo thứ tự:
-1. Xóa block `--#testpart … --/testpart` (case-insensitive)
+1. Xóa các block loại bỏ code hỗ trợ editor:
+   - `--#exclude … --/exclude` (chính thức)
+   - `--#testpart … --/testpart` (tương thích ngược)
+   Cả hai đều không phân biệt hoa thường (case-insensitive) và hỗ trợ dấu cách sau `--`.
 2. Xóa dòng trống và dòng comment (`--`)
 3. Escape `"` thành `""` cho C# verbatim string literal (`@"..."`)
 

@@ -143,15 +143,17 @@ FROM users
 WHERE id = @id
 ```
 
-### Test-only blocks
+### Exclude blocks
 
-Wrap SQL that should exist only in tests with `--#testpart` / `--/testpart`:
+Wrap SQL that should exist only in your SQL editor/tests (and be stripped from the generated C#) with `--#exclude` / `--/exclude`.
+
+> **Note**: `--#testpart` / `--/testpart` is also supported for backward compatibility, but `#exclude` is the official marker.
 
 ```sql
 SELECT id, name FROM users
---#testpart
+--#exclude
 WHERE tenant_id = 'test-tenant'
---/testpart
+--/exclude
 AND id = @id
 ```
 

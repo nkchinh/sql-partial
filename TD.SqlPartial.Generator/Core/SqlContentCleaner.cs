@@ -6,7 +6,7 @@ namespace TD.SqlPartial.Generator.Core
     internal static class SqlContentCleaner
     {
         private static readonly Regex TestPartRegex = new(
-            @"(?is)--\s*#testpart.*?--\s*/testpart\s*(\r\n|\r|\n)?",
+            @"(?is)--\s*#(testpart|exclude).*?--\s*/(testpart|exclude)\s*(\r\n|\r|\n)?",
             RegexOptions.Compiled);
 
         /// <summary>

@@ -11,7 +11,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <PackageId>TD.SqlPartial.Tool</PackageId>
-    <Version>2.0.0-alpha.2</Version>
+    <Version>2.0.0-alpha.3</Version>
     <Authors>chinhnk</Authors>
     <Description>Source Generator for generating partial classes from SQL files with configurable modifiers. Modern replacement for MSBuild task version.</Description>
     <PackageTags>sqlpartial;sourcegenerator;dotnet;sql;tool</PackageTags>
