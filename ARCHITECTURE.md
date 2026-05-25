@@ -130,7 +130,7 @@ Phương thức `Get(string providerName)` dùng `switch` trên display name (kh
 
 Mỗi `(Namespace, ClassName)` → một file hint `ClassName.{hash}.g.cs`. Hash được tính từ fully-qualified class name để tránh collision khi hai class cùng tên ở namespace khác nhau.
 
-Property được sinh là `private static readonly` — không phải `const` vì `readonly struct` không thể là `const`.
+Property được sinh là `private static readonly`, có tên được prefix với `Sql` (ví dụ `SqlGetUser`).
 
 ---
 

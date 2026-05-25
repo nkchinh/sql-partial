@@ -4,7 +4,7 @@ Roslyn source generator that turns `.sql` files into strongly-typed, DBMS-aware 
 
 ## How it works
 
-Each `.sql` file becomes a `static readonly SqlStrings` property on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to ANSI SQL automatically.
+Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to ANSI SQL automatically.
 
 ```
 UserRepo.GetById.sql        → ANSI fallback
@@ -17,7 +17,7 @@ Generated output:
 ```csharp
 partial class UserRepo
 {
-    private static readonly SqlStrings GetById = new SqlStrings
+    private static readonly SqlStrings SqlGetById = new SqlStrings
     {
         AnsiSql    = @"SELECT id, name FROM users WHERE id = @id",
         PostgreSql = @"SELECT id, name FROM users WHERE id = $1",
@@ -30,7 +30,7 @@ Runtime usage:
 
 ```csharp
 // providerName comes from appsettings, e.g. "PostgreSql"
-var sql = UserRepo.GetById.Get(providerName);
+var sql = UserRepo.SqlGetById.Get(providerName);
 ```
 
 ---
@@ -97,7 +97,7 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 ```
 
 - **ClassName** — must match the `partial class` name exactly.
-- **QueryName** — becomes the property name on the class.
+- **QueryName** — becomes the property name on the class (prefixed with `Sql`).
 - **Slug** — must match a slug declared in `SqlPartialProviders`, or `an` for ANSI.
 
 ---

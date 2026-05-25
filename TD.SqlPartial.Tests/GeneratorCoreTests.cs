@@ -112,7 +112,7 @@ namespace TD.SqlPartial.Tests
             Assert.Contains("#nullable disable", source);
             Assert.Contains("namespace MyProject.Repos", source);
             Assert.Contains("partial class UserRepo", source);
-            Assert.Contains("private static readonly MyProject.Sql.SqlStrings GetUsers = new MyProject.Sql.SqlStrings", source);
+            Assert.Contains("private static readonly MyProject.Sql.SqlStrings SqlGetUsers = new MyProject.Sql.SqlStrings", source);
             Assert.Contains("AnsiSql = @\"SELECT 1;\"", source);
             Assert.Contains("PostgreSql = @\"SELECT 2;\"", source);
         }
@@ -139,7 +139,7 @@ namespace TD.SqlPartial.Tests
                 groups,
                 config);
 
-            Assert.Contains("private static readonly Shared.SqlStrings GetUsers = new Shared.SqlStrings", source);
+            Assert.Contains("private static readonly Shared.SqlStrings SqlGetUsers = new Shared.SqlStrings", source);
         }
 
         [Theory]

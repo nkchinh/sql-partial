@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,12 +15,24 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <SqlPartialProviders>pg:PostgreSql</SqlPartialProviders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="**/*.*.sql">
+      <SourceItemType>SqlPartial</SourceItemType>
+    </AdditionalFiles>
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TD.SqlPartial.Generator\TD.SqlPartial.Generator.csproj" />
+    <ProjectReference Include="..\TD.SqlPartial.Generator\TD.SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
+
+  <Import Project="..\TD.SqlPartial.Generator\TD.SqlPartial.Tool.targets" />
 
 </Project>

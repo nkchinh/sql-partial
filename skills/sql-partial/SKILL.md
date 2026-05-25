@@ -16,8 +16,8 @@ description: |
 
 ## Tổng quan nhanh
 
-Generator biến `.sql` files thành `static readonly SqlStrings` properties trên `partial class`.
-Người dùng gọi `MyClass.GetUser.Get("PostgreSql")` tại runtime — generator lo phần còn lại.
+Generator biến `.sql` files thành `static readonly SqlStrings` properties prefixed với `Sql` trên `partial class`.
+Người dùng gọi `MyClass.SqlGetUser.Get("PostgreSql")` tại runtime — generator lo phần còn lại.
 
 ---
 
@@ -32,7 +32,7 @@ ClassName.QueryName.my.sql       ← MySQL override
 ```
 
 - **ClassName** phải khớp chính xác tên `partial class` (case-sensitive)
-- **QueryName** trở thành tên property trên class
+- **QueryName** trở thành tên property trên class (được tự động prefix với `Sql`)
 - **Slug** phải khớp một slug trong `SqlPartialProviders` của project, hoặc `an`
 
 File đặt trong cùng thư mục với class → namespace khớp tự động.
@@ -46,7 +46,7 @@ File đặt trong thư mục con → namespace = `RootNamespace.TênThưMụcCon
 
 Hỏi người dùng (hoặc suy ra từ context) 4 thứ:
 1. **ClassName** — class nào sẽ chứa query?
-2. **QueryName** — tên property mong muốn?
+2. **QueryName** — tên property mong muốn (sau khi sinh sẽ có prefix `Sql`)?
 3. **Provider** — ANSI chung hay provider-specific? Nếu specific thì slug nào?
 4. **Nội dung SQL** — người dùng cung cấp hay cần soạn?
 
@@ -157,7 +157,7 @@ namespace MyApp.Data
 {
     partial class UserRepo
     {
-        private static readonly SqlStrings GetById = new SqlStrings
+        private static readonly SqlStrings SqlGetById = new SqlStrings
         {
             AnsiSql    = @"SELECT ...",   // từ GetById.sql
             PostgreSql = @"SELECT ...",   // từ GetById.pg.sql
@@ -170,7 +170,7 @@ namespace MyApp.Data
 Runtime:
 ```csharp
 // providerName đọc từ appsettings, ví dụ "PostgreSql"
-var sql = UserRepo.GetById.Get(providerName);
+var sql = UserRepo.SqlGetById.Get(providerName);
 ```
 
 ---
@@ -247,7 +247,7 @@ public partial class UserRepo
 {
     public User? FindByEmail(string email, string dbProvider)
     {
-        var sql = GetByEmail.Get(dbProvider); // "PostgreSql" hoặc bất kỳ
+        var sql = SqlGetByEmail.Get(dbProvider); // "PostgreSql" hoặc bất kỳ
         // ... execute sql
     }
 }

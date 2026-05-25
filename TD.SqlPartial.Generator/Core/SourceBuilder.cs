@@ -93,7 +93,7 @@ namespace TD.SqlPartial.Generator.Core
 
             foreach (var group in groups)
             {
-                sb.AppendLine($"        private static readonly {stringsType} {group.QueryName} = new {stringsType}");
+                sb.AppendLine($"        private static readonly {stringsType} Sql{group.QueryName} = new {stringsType}");
                 sb.AppendLine("        {");
 
                 // AnsiSql — always emitted
