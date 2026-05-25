@@ -1,8 +1,4 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/TD.SqlPartial.Generator/TD.SqlPartial.Generator.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/TD.SqlPartial.Tests/TD.SqlPartial.Tests.csproj" />
-  </Folder>
+  <Project Path="TD.SqlPartial.Generator/TD.SqlPartial.Generator.csproj" />
+  <Project Path="TD.SqlPartial.Tests/TD.SqlPartial.Tests.csproj" />
 </Solution>

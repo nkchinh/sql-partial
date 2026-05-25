@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\TD.SqlPartial.Generator\TD.SqlPartial.Generator.csproj" />
+    <ProjectReference Include="..\TD.SqlPartial.Generator\TD.SqlPartial.Generator.csproj" />
   </ItemGroup>
 
 </Project>
