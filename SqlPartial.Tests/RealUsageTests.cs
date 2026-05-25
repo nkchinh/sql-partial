@@ -1,4 +1,4 @@
-namespace TD.SqlPartial.Tests
+namespace SqlPartial.Tests
 {
     public partial class RealUsageTests
     {
@@ -6,7 +6,7 @@ namespace TD.SqlPartial.Tests
         public void RealUsageTests_ShouldHaveGeneratedPrivateSqlProperty()
         {
             // This property is generated as 'private static readonly' 
-            // by TD.SqlPartial.Generator within this partial class.
+            // by SqlPartial.Generator within this partial class.
             var sqlStrings = SqlGetStatus;
 
             Assert.Equal("SELECT 'Ansi Status' FROM System;", sqlStrings.AnsiSql);

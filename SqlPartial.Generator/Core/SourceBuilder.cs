@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Text;
-using TD.SqlPartial.Generator.Models;
+using SqlPartial.Generator.Models;
 
-namespace TD.SqlPartial.Generator.Core
+namespace SqlPartial.Generator.Core
 {
     internal static class SourceBuilder
     {

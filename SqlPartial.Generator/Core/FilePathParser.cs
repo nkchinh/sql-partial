@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace TD.SqlPartial.Generator.Core
+namespace SqlPartial.Generator.Core
 {
     internal static class FilePathParser
     {

@@ -5,10 +5,10 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
-using TD.SqlPartial.Generator.Core;
-using TD.SqlPartial.Generator.Models;
+using SqlPartial.Generator.Core;
+using SqlPartial.Generator.Models;
 
-namespace TD.SqlPartial.Generator
+namespace SqlPartial.Generator
 {
     [Generator]
     public class SqlPartialGenerator : IIncrementalGenerator

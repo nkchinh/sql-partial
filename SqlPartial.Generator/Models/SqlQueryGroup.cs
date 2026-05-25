@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
 using System.Linq;
-using TD.SqlPartial.Generator.Core;
+using SqlPartial.Generator.Core;
 
-namespace TD.SqlPartial.Generator.Models
+namespace SqlPartial.Generator.Models
 {
     /// <summary>
     /// All .sql files that belong to one (Namespace, ClassName, QueryName) triple,

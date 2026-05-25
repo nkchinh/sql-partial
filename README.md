@@ -1,6 +1,6 @@
-# TD.SqlPartial.Generator
+# SqlPartial.Generator
 
-Roslyn source generator that turns `.sql` files into strongly-typed, DBMS-aware C# constants — with full IntelliSense and design-time generation on save.
+Modern Roslyn source generator that turns `.sql` files into strongly-typed, DBMS-aware C# constants — with full IntelliSense and automatic generation on save.
 
 ## How it works
 
@@ -39,8 +39,16 @@ string sqlSimple = UserRepo.SqlGetById;
 
 ## Installation
 
+```bash
+dotnet add package NkChinh.SqlPartial.Generator
 ```
-dotnet add package TD.SqlPartial.Generator
+
+## AI Agent Skill
+
+If you use Gemini CLI or a similar agent-based environment, you can install the specialized skill to help you manage SQL files:
+
+```bash
+npx skills add nkchinh/sql-partial --skill sql-partial
 ```
 
 ---
@@ -175,3 +183,9 @@ AND id = @id
 |------|----------|---------|
 | `SQLGEN001` | Error | Failed to generate `SqlStrings` struct |
 | `SQLGEN002` | Error | Failed to generate a partial class file |
+
+---
+
+## License
+
+This project is licensed under the MIT License.

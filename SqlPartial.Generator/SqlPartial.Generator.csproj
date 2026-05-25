@@ -10,12 +10,16 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
-    <PackageId>TD.SqlPartial.Tool</PackageId>
-    <Version>2.0.0-alpha.3</Version>
-    <Authors>chinhnk</Authors>
-    <Description>Source Generator for generating partial classes from SQL files with configurable modifiers. Modern replacement for MSBuild task version.</Description>
-    <PackageTags>sqlpartial;sourcegenerator;dotnet;sql;tool</PackageTags>
+    <PackageId>NkChinh.SqlPartial.Generator</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>nkchinh</Authors>
+    <Description>Modern Roslyn source generator that turns .sql files into strongly-typed C# constants with DBMS-specific overrides. Provides full IntelliSense and automatic generation on save.</Description>
+    <PackageTags>sql;partial;source-generator;roslyn;nkchinh;sql-partial;database;csharp</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/nkchinh/sql-partial</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/nkchinh/sql-partial</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,7 +29,7 @@
 
   <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers\dotnet\cs" Visible="false" />
-    <None Include="TD.SqlPartial.Tool.targets" Pack="true" PackagePath="build" Visible="false" />
+    <None Include="NkChinh.SqlPartial.Generator.targets" Pack="true" PackagePath="build" Visible="false" />
     <None Include="..\README.md" Pack="true" PackagePath="" Visible="false" />
   </ItemGroup>
 

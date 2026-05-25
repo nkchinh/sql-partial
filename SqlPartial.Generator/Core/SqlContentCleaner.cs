@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace TD.SqlPartial.Generator.Core
+namespace SqlPartial.Generator.Core
 {
     internal static class SqlContentCleaner
     {

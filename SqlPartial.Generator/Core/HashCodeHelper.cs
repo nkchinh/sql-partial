@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
-namespace TD.SqlPartial.Generator.Core;
+namespace SqlPartial.Generator.Core;
 
 internal class HashCodeHelper
 {

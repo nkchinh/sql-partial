@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SqlPartial.Generator/SqlPartial.Generator.csproj" />
+  <Project Path="SqlPartial.Tests/SqlPartial.Tests.csproj" />
+</Solution>

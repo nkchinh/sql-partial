@@ -30,9 +30,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TD.SqlPartial.Generator\TD.SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\SqlPartial.Generator\SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
-  <Import Project="..\TD.SqlPartial.Generator\TD.SqlPartial.Tool.targets" />
+  <Import Project="..\SqlPartial.Generator\NkChinh.SqlPartial.Generator.targets" />
 
 </Project>

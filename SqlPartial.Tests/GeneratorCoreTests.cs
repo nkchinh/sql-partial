@@ -1,8 +1,8 @@
 using System.Collections.Immutable;
-using TD.SqlPartial.Generator.Core;
-using TD.SqlPartial.Generator.Models;
+using SqlPartial.Generator.Core;
+using SqlPartial.Generator.Models;
 
-namespace TD.SqlPartial.Tests
+namespace SqlPartial.Tests
 {
     public class GeneratorCoreTests
     {

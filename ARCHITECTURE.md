@@ -1,53 +1,53 @@
-# Architecture — TD.SqlPartial.Generator
+# Architecture — SqlPartial.Generator
 
-Tài liệu này mô tả kiến trúc nội bộ của generator dành cho maintainer và contributor.
-
----
-
-## Tổng quan
-
-Generator là một **Roslyn Incremental Source Generator** (`IIncrementalGenerator`). Toàn bộ quá trình sinh code xảy ra bên trong Roslyn compiler pipeline — không có file `.cs` nào được ghi ra disk trong quá trình build thông thường (chỉ tồn tại dưới dạng virtual source trong bộ nhớ của Language Server, hoặc trong `obj/` khi `EmitCompilerGeneratedFiles=true`).
+This document describes the internal architecture of the generator for maintainers and contributors.
 
 ---
 
-## Cấu trúc thư mục
+## Overview
+
+The generator is a **Roslyn Incremental Source Generator** (`IIncrementalGenerator`). The entire code generation process occurs within the Roslyn compiler pipeline — no `.cs` files are written to disk during a standard build (they exist as virtual source in the Language Server's memory, or in `obj/` when `EmitCompilerGeneratedFiles=true`).
+
+---
+
+## Directory Structure
 
 ```
-TD.SqlPartial.Generator/
-├── SqlPartialGenerator.cs          Entry point — khai báo pipeline
+SqlPartial.Generator/
+├── SqlPartialGenerator.cs          Entry point — pipeline declaration
 ├── Core/
-│   ├── ConfigParser.cs             Đọc MSBuild properties → GeneratorConfig
-│   ├── FilePathParser.cs           Parse đường dẫn file → (ns, className, queryName, slug)
-│   ├── SqlContentCleaner.cs        Strip comments, testpart blocks, escape verbatim strings
-│   └── SourceBuilder.cs            Sinh C# source từ models
+│   ├── ConfigParser.cs             Reads MSBuild properties → GeneratorConfig
+│   ├── FilePathParser.cs           Parses file paths → (ns, className, queryName, slug)
+│   ├── SqlContentCleaner.cs        Strips comments, exclude blocks, escapes verbatim strings
+│   └── SourceBuilder.cs            Generates C# source from models
 ├── Models/
-│   ├── GeneratorConfig.cs          Cấu hình cấp project (providers, namespaces...)
-│   ├── SqlProvider.cs              Một DBMS provider (slug + display name)
-│   ├── SqlFile.cs                  Một file .sql đã parse
-│   └── SqlQueryGroup.cs            Nhóm các SqlFile cùng (ns, className, queryName)
-└── build/
-    └── TD.SqlPartial.Generator.targets   MSBuild targets đóng gói trong NuGet
+│   ├── GeneratorConfig.cs          Project-level configuration (providers, namespaces...)
+│   ├── SqlProvider.cs              A DBMS provider (slug + display name)
+│   ├── SqlFile.cs                  A parsed .sql file
+│   └── SqlQueryGroup.cs            Group of SqlFiles with same (ns, className, queryName)
+└── build/ (implicit in NuGet)
+    └── NkChinh.SqlPartial.Generator.targets   MSBuild targets packaged in NuGet
 ```
 
 ---
 
-## Pipeline generator
+## Generator Pipeline
 
 ```
 AdditionalTextsProvider
     │ filter: .sql + SourceItemType=SqlPartial
-    │ select: đọc content, clean
+    │ select: read content, clean
     ▼
 (FilePath, Content)
-    │ combine với GeneratorConfig + ProjectDir
+    │ combine with GeneratorConfig + ProjectDir
     │ select: FilePathParser.TryParse → SqlFile
     ▼
 ImmutableArray<SqlFile>  ← Collect()
-    │ SelectMany: group theo (Namespace, ClassName, QueryName)
+    │ SelectMany: group by (Namespace, ClassName, QueryName)
     ▼
 ImmutableArray<SqlQueryGroup>  ← Collect()
-    │ combine với GeneratorConfig
-    │ SelectMany: group theo (Namespace, ClassName)
+    │ combine with GeneratorConfig
+    │ SelectMany: group by (Namespace, ClassName)
     ▼
 classBatches → RegisterSourceOutput → SourceBuilder.BuildPartialClass()
 
@@ -57,13 +57,13 @@ AnalyzerConfigOptionsProvider
 GeneratorConfig → RegisterSourceOutput → SourceBuilder.BuildSqlStringsStruct()
 ```
 
-### Tại sao dùng `Collect()` hai lần
+### Why use `Collect()` twice?
 
-Bước đầu `Collect()` gom tất cả `SqlFile` để có thể group theo query. Nếu không collect trước, mỗi `SqlFile` sẽ được xử lý độc lập và không thể biết các file của cùng một query.
+The first `Collect()` gathers all `SqlFile` objects so they can be grouped by query. Without this, each `SqlFile` would be processed independently, and it would be impossible to know which files belong to the same query.
 
-Bước hai `Collect()` gom tất cả `SqlQueryGroup` để group theo class, từ đó sinh một file `.g.cs` duy nhất per class thay vì một file per query.
+The second `Collect()` gathers all `SqlQueryGroup` objects to group them by class, allowing for a single `.g.cs` file to be generated per class instead of one file per query.
 
-**Nhược điểm**: mỗi khi bất kỳ `.sql` nào thay đổi, toàn bộ pipeline sau `Collect()` đều re-execute. Đây là đánh đổi cần thiết vì grouping là phép toán toàn cục. Với số lượng `.sql` file thực tế trong một project, chi phí này không đáng kể.
+**Trade-off**: Whenever any `.sql` file changes, the entire pipeline after `Collect()` re-executes. This is a necessary trade-off because grouping is a global operation. For the typical number of `.sql` files in a project, this cost is negligible.
 
 ---
 
@@ -71,77 +71,76 @@ Bước hai `Collect()` gom tất cả `SqlQueryGroup` để group theo class, t
 
 ### `GeneratorConfig`
 
-Parsed từ MSBuild global properties một lần duy nhất. Stable giữa các lần chỉnh sửa `.sql` — Roslyn cache lại và không re-parse trừ khi project file thay đổi.
+Parsed from MSBuild global properties once. It remains stable between `.sql` file edits — Roslyn caches it and does not re-parse unless the project file changes.
 
-| Property | MSBuild source | Mô tả |
+| Property | MSBuild source | Description |
 |---|---|---|
-| `RootNamespace` | `build_property.RootNamespace` | Namespace gốc của project |
-| `Providers` | `build_property.SqlPartialProviders` | Danh sách DBMS provider |
-| `SqlStringsNamespace` | `build_property.SqlPartialStringsNamespace` | Namespace cho struct `SqlStrings` |
-| `ExternalSqlStringsType` | `build_property.SqlPartialStringsType` | Dùng struct từ assembly khác |
-| `NullableEnabled` | `build_property.Nullable` | Có emit `#nullable enable` không |
+| `RootNamespace` | `build_property.RootNamespace` | The project's root namespace |
+| `Providers` | `build_property.SqlPartialProviders` | List of DBMS providers |
+| `SqlStringsNamespace` | `build_property.SqlPartialStringsNamespace` | Namespace for the `SqlStrings` struct |
+| `ExternalSqlStringsType` | `build_property.SqlPartialStringsType` | Use a struct from another assembly |
+| `NullableEnabled` | `build_property.Nullable` | Whether to emit `#nullable enable` |
 
 ### `SqlFile`
 
-Đại diện cho một file `.sql` sau khi parse. Implement `IEquatable<SqlFile>` — bắt buộc để Roslyn incremental caching hoạt động đúng. Nếu không có `IEquatable`, pipeline luôn re-execute dù content không đổi.
+Represents a parsed `.sql` file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. Without `IEquatable`, the pipeline would always re-execute even if content remained unchanged.
 
 ### `SqlQueryGroup`
 
-Nhóm tất cả `SqlFile` cùng `(Namespace, ClassName, QueryName)`. Chứa `ImmutableDictionary<string, string>` ánh xạ slug → SQL content.
+Groups all `SqlFile` objects with the same `(Namespace, ClassName, QueryName)`. It contains an `ImmutableDictionary<string, string>` mapping slug → SQL content.
 
-Phương thức `GetContent(slug)`:
+`GetContent(slug)` method:
 ```
-slug tồn tại trong dict → trả về content của slug đó
-slug không tồn tại       → fallback về "an" (ANSI)
-không có "an"            → trả về string.Empty
+slug exists in dict → returns content for that slug
+slug not found      → falls back to "an" (ANSI)
+"an" missing        → returns string.Empty
 ```
 
 ---
 
-## Targets và cơ chế trigger
+## Targets and Trigger Mechanism
 
-### Tại sao khai báo `AdditionalFiles` trực tiếp
+### Direct `AdditionalFiles` Declaration
 
-Các generator khác (kể cả phiên bản cũ của project này) thường dùng custom item type (`<SqlPartial>`) rồi transform sang `<AdditionalFiles>`. Cách này phá vỡ cơ chế file-watching của Roslyn Language Server trong VSCode/C# DevKit: Language Server chỉ watch các `AdditionalFiles` được khai báo trực tiếp, không watch qua item type trung gian.
+Other generators often use a custom item type (like `<SqlPartial>`) and then transform it to `<AdditionalFiles>`. This approach breaks the file-watching mechanism of the Roslyn Language Server in VSCode/C# DevKit: the Language Server only watches `AdditionalFiles` declared directly, not those transformed via an intermediate item type.
 
-Giải pháp: user khai báo `<AdditionalFiles>` trực tiếp với metadata `<SourceItemType>SqlPartial</SourceItemType>`. Language Server thấy file path trực tiếp và thiết lập watcher đúng cách — generator tự động trigger khi lưu file `.sql`.
+Solution: Users declare `<AdditionalFiles>` directly with the metadata `<SourceItemType>SqlPartial</SourceItemType>`. The Language Server sees the file path directly and sets up the watcher correctly — the generator triggers automatically when the `.sql` file is saved.
 
-### `CompilerVisibleProperty` và `CompilerVisibleItemMetadata`
+### `CompilerVisibleProperty` and `CompilerVisibleItemMetadata`
 
-Các khai báo này trong `.targets` cho phép generator đọc MSBuild properties/metadata thông qua `AnalyzerConfigOptionsProvider`. Không có chúng, `TryGetValue("build_property.XYZ")` luôn trả về `false`.
+These declarations in `.targets` allow the generator to read MSBuild properties/metadata via `AnalyzerConfigOptionsProvider`. Without them, `TryGetValue("build_property.XYZ")` would always return `false`.
 
-Đây là implementation detail của package — người dùng không cần và không nên tự khai báo.
+These are implementation details of the package — users do not and should not declare them manually.
 
 ### `UpToDateCheckInput`
 
-Đảm bảo MSBuild Fast Up-To-Date Check (FUTDC) phát hiện thay đổi `.sql` và trigger build đầy đủ. Không có dòng này, FUTDC có thể bỏ qua build dù `.sql` đã thay đổi.
+Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects `.sql` changes and triggers a full build. Without this, FUTDC might skip the build even if a `.sql` file has changed.
 
 ---
 
-## Sinh code — `SourceBuilder`
+## Code Generation — `SourceBuilder`
 
 ### `SqlStrings` struct
 
-Sinh một lần per project. Struct là `readonly` để đảm bảo immutability. Property `AnsiSql` luôn có mặt; các provider property là `string?` (hoặc `string` tùy phiên bản C#) để phân biệt "chưa có SQL riêng" với "SQL rỗng".
+Generated once per project. The struct is `readonly` to ensure immutability. The `AnsiSql` property is always present; provider properties are `string?` (or `string` depending on the C# version) to distinguish "no specific SQL" from "empty SQL."
 
-**Tính năng đặc biệt**:
-- **Tương thích ngược**: Generator tự động phát hiện phiên bản C# của project. Nếu C# < 8.0, generator sẽ không emit các chỉ thị `#nullable` và dùng `string` thay cho `string?`.
-- **Implicit conversion**: Struct `SqlStrings` có thể ép kiểu ngầm định sang `string`, kết quả trả về luôn là `AnsiSql`. Điều này giúp code gọn hơn khi project chỉ dùng một DBMS duy nhất.
+**Special Features**:
+- **Backward Compatibility**: The generator automatically detects the project's C# version. If C# < 8.0, it won't emit `#nullable` directives and will use `string` instead of `string?`.
+- **Implicit Conversion**: The `SqlStrings` struct can be implicitly cast to `string`, returning `AnsiSql`. This keeps code concise for projects using a single DBMS.
 
-Tất cả các property đều dùng `{ get; }` (getter-only) và được khởi tạo thông qua constructor để tương thích ngược với C# 7.3.
+All properties use `{ get; }` (getter-only) and are initialized via the constructor for compatibility with C# 7.3.
 
+The `Get(string providerName)` method uses a `switch` on the display name (not the slug) because this is the value users configure in their application settings — for example, `"PostgreSql"` instead of `"pg"`.
 
-Phương thức `Get(string providerName)` dùng `switch` trên display name (không phải slug) vì đây là giá trị người dùng cấu hình trong appsettings — ví dụ `"PostgreSql"` chứ không phải `"pg"`.
+### Partial Class
 
-### Partial class
+Each `(Namespace, ClassName)` generates a hint file `ClassName.{hash}.g.cs`. The hash is calculated from the fully-qualified class name to avoid collisions when two classes with the same name exist in different namespaces.
 
-Mỗi `(Namespace, ClassName)` → một file hint `ClassName.{hash}.g.cs`. Hash được tính từ fully-qualified class name để tránh collision khi hai class cùng tên ở namespace khác nhau.
-
-Property được sinh là `private static readonly`, có tên được prefix với `Sql` (ví dụ `SqlGetUser`).
+Generated properties are `private static readonly` and prefixed with `Sql` (e.g., `SqlGetUser`).
 
 ---
 
-## Quy ước tên file `.sql`
+## File Naming Convention
 
 ```
 ClassName.QueryName.sql          → providerSlug = "an"
@@ -149,34 +148,33 @@ ClassName.QueryName.an.sql       → providerSlug = "an"  (explicit)
 ClassName.QueryName.pg.sql       → providerSlug = "pg"
 ```
 
-`FilePathParser.TryParse` bóc tách theo quy ước này. File không khớp pattern (ít hơn 2 segment trước `.sql`) bị bỏ qua — không gây lỗi build.
+`FilePathParser.TryParse` decomposes paths according to this convention. Files that do not match the pattern (fewer than 2 segments before `.sql`) are ignored — they do not cause build errors.
 
 ---
 
-## Xử lý SQL content — `SqlContentCleaner`
+## SQL Content Processing — `SqlContentCleaner`
 
-Thực hiện theo thứ tự:
-1. Xóa các block loại bỏ code hỗ trợ editor:
-   - `--#exclude … --/exclude` (chính thức)
-   - `--#testpart … --/testpart` (tương thích ngược)
-   Cả hai đều không phân biệt hoa thường (case-insensitive) và hỗ trợ dấu cách sau `--`.
-2. Xóa dòng trống và dòng comment (`--`)
-3. Escape `"` thành `""` cho C# verbatim string literal (`@"..."`)
+Performed in order:
+1. Strip editor support/test blocks:
+   - `--#exclude … --/exclude` (official)
+   - `--#testpart … --/testpart` (legacy support)
+   Both are case-insensitive and support spaces after `--`.
+2. Strip blank lines and line comments (`--`).
+3. Escape `"` to `""` for C# verbatim string literals (`@"..."`).
 
 ---
 
-## Đóng gói NuGet
+## NuGet Packaging
 
-File `.targets` phải nằm ở đường dẫn `build/TD.SqlPartial.Generator.targets` trong NuGet package để được tự động import. Cấu hình trong `.csproj` của generator project:
+The `.targets` file must be located at `build/NkChinh.SqlPartial.Generator.targets` within the NuGet package to be automatically imported. Configured in the generator's `.csproj`:
 
 ```xml
 <ItemGroup>
-    <None Include="build\TD.SqlPartial.Generator.targets" Pack="true"
-          PackagePath="build\" />
+    <None Include="NkChinh.SqlPartial.Generator.targets" Pack="true" PackagePath="build\" />
 </ItemGroup>
 ```
 
-Generator assembly phải được đánh dấu là analyzer:
+The generator assembly must be marked as an analyzer:
 
 ```xml
 <ItemGroup>
@@ -187,21 +185,21 @@ Generator assembly phải được đánh dấu là analyzer:
 
 ---
 
-## Thêm provider mới
+## Adding a New Provider
 
-Không cần thay đổi code generator. Người dùng chỉ cần thêm vào `SqlPartialProviders`:
+No generator code changes are required. Users simply add it to `SqlPartialProviders`:
 
 ```xml
 <SqlPartialProviders>pg:PostgreSql;ms:SqlServer;ora:Oracle</SqlPartialProviders>
 ```
 
-Generator sinh thêm property `Oracle` trên `SqlStrings` và case `"Oracle"` trong `Get()` tự động.
+The generator automatically adds the `Oracle` property to `SqlStrings` and a `"Oracle"` case to the `Get()` method.
 
 ---
 
-## Chạy test thủ công
+## Manual Testing
 
-Bật `EmitCompilerGeneratedFiles` để xem file được sinh ra:
+Enable `EmitCompilerGeneratedFiles` to see the generated files:
 
 ```xml
 <PropertyGroup>
@@ -209,4 +207,4 @@ Bật `EmitCompilerGeneratedFiles` để xem file được sinh ra:
 </PropertyGroup>
 ```
 
-File xuất hiện tại `obj/Debug/{tfm}/generated/TD.SqlPartial.Generator/`.
+Files will appear at `obj/Debug/{tfm}/generated/SqlPartial.Generator/`.

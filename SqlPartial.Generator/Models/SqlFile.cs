@@ -1,6 +1,6 @@
-using TD.SqlPartial.Generator.Core;
+using SqlPartial.Generator.Core;
 
-namespace TD.SqlPartial.Generator.Models
+namespace SqlPartial.Generator.Models
 {
     /// <summary>
     /// Represents a single .sql AdditionalFile, parsed from its path and content.

@@ -1,142 +1,149 @@
 ---
 name: sql-partial
 description: |
-  Hướng dẫn agent tạo và quản lý SQL partial files cho dự án dùng TD.SqlPartial.Generator.
-  Dùng skill này bất cứ khi nào người dùng muốn:
-  - Thêm SQL query mới vào một class (tạo file .sql)
-  - Thêm provider-specific SQL cho một query đã có (pg, ms, my...)
-  - Cấu hình TD.SqlPartial.Generator trong .csproj
-  - Kiểm tra cấu trúc file .sql có đúng convention không
-  - Xem danh sách queries đang có trong project
-  - Tái cấu trúc SQL files (đổi tên, di chuyển, thêm provider)
-  Trigger ngay khi thấy đề cập đến: sql partial, SqlStrings, query file, .sql generator, DBMS provider, AnsiSql.
+  Guides the agent in creating and managing SQL partial files for projects using SqlPartial.Generator.
+  Use this skill whenever the user wants to:
+  - Add a new SQL query to a class (create .sql file)
+  - Add provider-specific SQL for an existing query (pg, ms, my...)
+  - Configure SqlPartial.Generator in .csproj
+  - Verify if .sql file structure matches the convention
+  - List existing queries in the project
+  - Refactor SQL files (rename, move, add provider)
+  Trigger when mentioning: sql partial, SqlStrings, query file, .sql generator, DBMS provider, AnsiSql.
 ---
 
-# TD.SqlPartial.Generator Skill
+# SqlPartial.Generator Skill
 
-## Tổng quan nhanh
+## Quick Overview
 
-Generator biến `.sql` files thành `static readonly SqlStrings` properties prefixed với `Sql` trên `partial class`.
-Người dùng gọi `MyClass.SqlGetUser.Get("PostgreSql")` tại runtime — generator lo phần còn lại.
+The generator transforms `.sql` files into `static readonly SqlStrings` properties prefixed with `Sql` on a `partial class`.
+At runtime, call `MyClass.SqlGetUser.Get("PostgreSql")` — the generator handles the rest.
+
+## Installation for Agents
+
+To add this skill to your Gemini CLI environment:
+```bash
+npx skills add nkchinh/sql-partial --skill sql-partial
+```
 
 ---
 
-## Quy ước tên file (QUAN TRỌNG)
+## Naming Convention (IMPORTANT)
 
 ```
-ClassName.QueryName.sql          ← ANSI SQL, dùng chung cho mọi DBMS
-ClassName.QueryName.an.sql       ← Giống trên, explicit
+ClassName.QueryName.sql          ← ANSI SQL, shared fallback for all DBMS
+ClassName.QueryName.an.sql       ← Same as above, explicit
 ClassName.QueryName.pg.sql       ← PostgreSQL override
 ClassName.QueryName.ms.sql       ← SQL Server override
 ClassName.QueryName.my.sql       ← MySQL override
 ```
 
-- **ClassName** phải khớp chính xác tên `partial class` (case-sensitive)
-- **QueryName** trở thành tên property trên class (được tự động prefix với `Sql`)
-- **Slug** phải khớp một slug trong `SqlPartialProviders` của project, hoặc `an`
+- **ClassName** must exactly match the `partial class` name (case-sensitive).
+- **QueryName** becomes the property name on the class (automatically prefixed with `Sql`).
+- **Slug** must match a slug in the project's `SqlPartialProviders`, or `an`.
 
-File đặt trong cùng thư mục với class → namespace khớp tự động.
-File đặt trong thư mục con → namespace = `RootNamespace.TênThưMụcCon`.
+Files in the same directory as the class → namespace matches automatically.
+Files in a subdirectory → namespace = `RootNamespace.SubDirName`.
 
 ---
 
-## Workflow: thêm SQL mới
+## Workflow: Adding New SQL
 
-### Bước 1 — Thu thập thông tin
+### Step 1 — Gather Information
 
-Hỏi người dùng (hoặc suy ra từ context) 4 thứ:
-1. **ClassName** — class nào sẽ chứa query?
-2. **QueryName** — tên property mong muốn (sau khi sinh sẽ có prefix `Sql`)?
-3. **Provider** — ANSI chung hay provider-specific? Nếu specific thì slug nào?
-4. **Nội dung SQL** — người dùng cung cấp hay cần soạn?
+Ask the user (or infer from context) 4 things:
+1. **ClassName** — which class will contain the query?
+2. **QueryName** — desired property name (will be prefixed with `Sql`)?
+3. **Provider** — common ANSI or provider-specific? If specific, which slug?
+4. **SQL Content** — provided by the user or needs to be drafted?
 
-### Bước 2 — Xác định thư mục
+### Step 2 — Determine Directory
 
 ```bash
-# Tìm file .csproj để biết project root
+# Find .csproj to identify project root
 find . -name "*.csproj" -not -path "*/obj/*" | head -5
 
-# Tìm class đích để biết nó nằm ở đâu
+# Find target class to see where it's located
 find . -name "ClassName.cs" -not -path "*/obj/*"
 ```
 
-File `.sql` phải đặt cùng thư mục với class để namespace khớp.
+The `.sql` file must be placed in the same directory as the class for the namespace to match.
 
-### Bước 3 — Kiểm tra cấu hình project
+### Step 3 — Check Project Configuration
 
 ```bash
-# Kiểm tra SqlPartialProviders và AdditionalFiles đã cấu hình chưa
+# Check if SqlPartialProviders and AdditionalFiles are configured
 grep -A5 "SqlPartialProviders\|SqlPartial\|AdditionalFiles.*sql" *.csproj
 ```
 
-Nếu chưa có cấu hình → xem phần **Cấu hình .csproj** bên dưới.
+If not configured → see **.csproj Configuration** below.
 
-### Bước 4 — Tạo file
+### Step 4 — Create File
 
-Tạo file đúng tên convention, đặt đúng thư mục. SQL content cần:
-- Xóa comment giải thích nếu người dùng không muốn giữ (generator tự strip `--` comments)
-- Giữ `--#testpart … --/testpart` nếu có đoạn SQL chỉ dùng cho test
+Create the file with the correct naming convention in the target directory. SQL content should:
+- Remove explanatory comments if the user doesn't want them (generator strips `--` comments anyway).
+- Keep `--#exclude … --/exclude` if there's SQL only for testing/editor support.
 
-### Bước 5 — Xác nhận partial class tồn tại
+### Step 5 — Confirm Partial Class Exists
 
 ```bash
 grep -r "partial class ClassName" --include="*.cs" -l
 ```
 
-Nếu chưa có → nhắc người dùng tạo hoặc thêm `partial` keyword vào class hiện tại.
+If it doesn't exist → remind the user to create it or add the `partial` keyword to the existing class.
 
 ---
 
-## Cấu hình .csproj
+## .csproj Configuration
 
-Khi project chưa có cấu hình, thêm vào `.csproj`:
+When the project is not yet configured, add this to `.csproj`:
 
 ```xml
 <PropertyGroup>
-    <!-- Khai báo DBMS providers: slug:DisplayName, phân cách bằng ; -->
-    <!-- ANSI SQL luôn có sẵn, không cần khai báo -->
+    <!-- Declare DBMS providers: slug:DisplayName, separated by ; -->
+    <!-- ANSI SQL is always available, no need to declare -->
     <SqlPartialProviders>pg:PostgreSql;ms:SqlServer</SqlPartialProviders>
 </PropertyGroup>
 
 <ItemGroup>
-    <!-- Include trực tiếp làm AdditionalFiles — KHÔNG dùng custom item type trung gian -->
+    <!-- Include directly as AdditionalFiles — DO NOT use an intermediate custom item type -->
     <AdditionalFiles Include="**/*.*.sql" Exclude="obj/**/*;bin/**/*">
         <SourceItemType>SqlPartial</SourceItemType>
     </AdditionalFiles>
 </ItemGroup>
 ```
 
-**Lưu ý quan trọng**: pattern `**/*.*.sql` (hai dấu chấm) đảm bảo file phải có ít nhất `ClassName.QueryName.sql` — tránh nhặt file SQL không liên quan chỉ có một tên đơn.
+**Important Note**: the pattern `**/*.*.sql` (two dots) ensures the file has at least `ClassName.QueryName.sql` — avoiding unrelated SQL files with a single name segment.
 
-### Tùy chọn: namespace cho SqlStrings struct
+### Optional: Namespace for SqlStrings struct
 
 ```xml
 <PropertyGroup>
-    <!-- Mặc định: RootNamespace -->
+    <!-- Default: RootNamespace -->
     <SqlPartialStringsNamespace>MyCompany.Data</SqlPartialStringsNamespace>
 </PropertyGroup>
 ```
 
-### Tùy chọn: dùng SqlStrings từ project khác
+### Optional: Use SqlStrings from another project
 
 ```xml
 <PropertyGroup>
-    <!-- Khi set, generator KHÔNG sinh SqlStrings struct trong project này -->
+    <!-- When set, the generator does NOT emit the SqlStrings struct in this project -->
     <SqlPartialStringsType>MyCompany.Core.SqlStrings</SqlPartialStringsType>
 </PropertyGroup>
 ```
 
 ---
 
-## Kết quả sinh ra
+## Generated Output
 
-Với cấu hình `SqlPartialProviders=pg:PostgreSql;ms:SqlServer` và các file:
+With `SqlPartialProviders=pg:PostgreSql;ms:SqlServer` and files:
 ```
 Data/UserRepo.GetById.sql
 Data/UserRepo.GetById.pg.sql
 ```
 
-Generator sinh:
+The generator produces:
 
 ```csharp
 // SqlStrings.g.cs
@@ -165,9 +172,9 @@ namespace MyApp.Data
     partial class UserRepo
     {
         private static readonly SqlStrings SqlGetById = new SqlStrings(
-            @"SELECT ...",   // từ GetById.sql
-            postgresql: @"SELECT ..."   // từ GetById.pg.sql
-            // SqlServer không có file riêng → fallback về AnsiSql tại runtime
+            @"SELECT ...",   // from GetById.sql
+            postgresql: @"SELECT ..."   // from GetById.pg.sql
+            // SqlServer has no separate file → falls back to AnsiSql at runtime
         );
     }
 }
@@ -175,66 +182,66 @@ namespace MyApp.Data
 
 Runtime:
 ```csharp
-// providerName đọc từ appsettings, ví dụ "PostgreSql"
+// providerName read from appsettings, e.g., "PostgreSql"
 var sql = UserRepo.SqlGetById.Get(providerName);
 
-// Nếu project chỉ dùng 1 DBMS, có thể ép kiểu ngầm định sang string (trả về AnsiSql)
+// If project uses only 1 DBMS, can implicitly cast to string (returns AnsiSql)
 string sqlSimple = UserRepo.SqlGetById;
 ```
 
 ---
 
-## Kiểm tra và debug
+## Verification and Debugging
 
-### Xem tất cả SQL files hiện có
+### List all existing SQL files
 
 ```bash
 find . -name "*.*.sql" -not -path "*/obj/*" -not -path "*/bin/*" | sort
 ```
 
-### Kiểm tra convention có đúng không
+### Verify naming convention
 
 ```bash
-# File phải có ít nhất 2 segment trước .sql
-# Đúng:  UserRepo.GetById.sql  |  UserRepo.GetById.pg.sql
-# Sai:   GetById.sql  |  queries.sql
+# File must have at least 2 segments before .sql
+# Correct: UserRepo.GetById.sql | UserRepo.GetById.pg.sql
+# Wrong:   GetById.sql | queries.sql
 find . -name "*.sql" -not -path "*/obj/*" | while read f; do
     base=$(basename "$f" .sql)
     count=$(echo "$base" | tr -cd '.' | wc -c)
     if [ "$count" -lt 1 ]; then
-        echo "WARN: $f — thiếu segment, sẽ bị bỏ qua bởi generator"
+        echo "WARN: $f — missing segment, will be ignored by generator"
     fi
 done
 ```
 
-### Bật EmitCompilerGeneratedFiles để xem output
+### Enable EmitCompilerGeneratedFiles to see output
 
-Thêm vào `.csproj` khi cần debug:
+Add to `.csproj` for debugging:
 ```xml
 <PropertyGroup>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 </PropertyGroup>
 ```
 
-File sinh ra tại: `obj/Debug/{tfm}/generated/TD.SqlPartial.Generator/`
+Files are generated at: `obj/Debug/{tfm}/generated/SqlPartial.Generator/`
 
-### Lỗi thường gặp
+### Common Issues
 
-| Triệu chứng | Nguyên nhân | Cách fix |
+| Symptom | Cause | Fix |
 |---|---|---|
-| Property không xuất hiện trên class | File `.sql` không match convention | Kiểm tra tên file có đúng `ClassName.QueryName[.slug].sql` |
-| Namespace không khớp class chính | File `.sql` đặt sai thư mục | Di chuyển file `.sql` về cùng thư mục với `.cs` |
-| `SqlStrings` không tìm thấy | Chưa build sau khi thêm file | Build project hoặc lưu file `.cs` bất kỳ để trigger generator |
-| Provider property null | Không có file `.slug.sql` cho provider đó | Đây là behavior đúng — `Get()` tự fallback về `AnsiSql` |
-| Generator không trigger khi sửa .sql | `AdditionalFiles` khai báo sai | Đảm bảo dùng `<AdditionalFiles Include="...">` trực tiếp, không qua custom item type |
+| Property missing on class | File `.sql` doesn't match convention | Check if filename is `ClassName.QueryName[.slug].sql` |
+| Namespace doesn't match main class | File `.sql` in wrong directory | Move `.sql` file to the same directory as the `.cs` file |
+| `SqlStrings` not found | Haven't built after adding file | Build project or save any `.cs` file to trigger generator |
+| Provider property null | No `.slug.sql` file for that provider | Expected behavior — `Get()` automatically falls back to `AnsiSql` |
+| Generator doesn't trigger on edit | `AdditionalFiles` declared incorrectly | Ensure using direct `<AdditionalFiles Include="...">`, not via custom item type |
 
 ---
 
-## Ví dụ đầy đủ
+## Complete Example
 
-**Yêu cầu**: Thêm query `GetByEmail` cho class `UserRepo`, có SQL riêng cho PostgreSQL.
+**Requirement**: Add `GetByEmail` query to `UserRepo` class, with specific SQL for PostgreSQL.
 
-**Files cần tạo**:
+**Files to create**:
 
 `Data/UserRepo.GetByEmail.sql` (ANSI fallback):
 ```sql
@@ -250,13 +257,13 @@ FROM users
 WHERE email = $1
 ```
 
-**Kết quả sử dụng**:
+**Usage**:
 ```csharp
 public partial class UserRepo
 {
     public User? FindByEmail(string email, string dbProvider)
     {
-        var sql = SqlGetByEmail.Get(dbProvider); // "PostgreSql" hoặc bất kỳ
+        var sql = SqlGetByEmail.Get(dbProvider); // "PostgreSql" or any other
         // ... execute sql
     }
 }
