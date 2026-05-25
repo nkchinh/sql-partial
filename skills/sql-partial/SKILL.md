@@ -81,8 +81,8 @@ If not configured → see **.csproj Configuration** below.
 ### Step 4 — Create File
 
 Create the file with the correct naming convention in the target directory. SQL content should:
-- Remove explanatory comments if the user doesn't want them (generator strips `--` comments anyway).
-- Keep `--#exclude … --/exclude` if there's SQL only for testing/editor support.
+- **Keep and encourage helpful documentation**: You are encouraged to include or add descriptive comments (`--`). Since the generator automatically strips them during code generation, you can document your SQL extensively without any runtime performance penalty.
+- Keep `--#exclude … --/exclude` (or the legacy `--#testpart … --/testpart` blocks) if there's SQL only for testing/editor support.
 
 ### Step 5 — Confirm Partial Class Exists
 
