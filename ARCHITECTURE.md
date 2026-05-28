@@ -187,13 +187,18 @@ The generator assembly must be marked as an analyzer:
 
 ## Adding a New Provider
 
-No generator code changes are required. Users simply add it to `SqlPartialProviders`:
+The generator is entirely DBMS-agnostic. No code changes are required to support a new database system. Users simply add a new `slug:DisplayName` pair to `SqlPartialProviders` in their `.csproj`:
 
 ```xml
-<SqlPartialProviders>pg:PostgreSql;ms:SqlServer;ora:Oracle</SqlPartialProviders>
+<PropertyGroup>
+    <SqlPartialProviders>pg:PostgreSql;ms:SqlServer;ora:Oracle;lt:Sqlite</SqlPartialProviders>
+</PropertyGroup>
 ```
 
-The generator automatically adds the `Oracle` property to `SqlStrings` and a `"Oracle"` case to the `Get()` method.
+The generator automatically:
+1. Adds a corresponding property to the `SqlStrings` struct.
+2. Updates the `SqlStrings` constructor to accept the new provider's SQL.
+3. Adds a case to the `Get(string providerName)` method to return the SQL when queried by the display name (e.g., `"Oracle"`).
 
 ---
 

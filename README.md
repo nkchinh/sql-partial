@@ -2,6 +2,16 @@
 
 Modern Roslyn source generator that turns `.sql` files into strongly-typed, DBMS-aware C# constants — with full IntelliSense and automatic generation on save.
 
+## Why SqlPartial?
+
+Writing SQL as string literals inside C# is a painful experience:
+- **No Syntax Highlighting:** SQL strings are just plain text to your editor.
+- **No Linting/Validation:** SQL errors are only caught at runtime.
+- **Hard to Test:** You can't easily run a string literal against a database without copying it.
+- **Messy Code:** Large SQL queries clutter your C# logic.
+
+**SqlPartial** solves this by letting you keep your SQL in dedicated `.sql` files. You get full editor support (highlighting, formatting, schema validation) while the generator seamlessly bridges them into your C# code as strongly-typed constants.
+
 ## How it works
 
 Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to ANSI SQL automatically.
@@ -57,20 +67,27 @@ npx skills add nkchinh/sql-partial --skill sql-partial
 
 ### 1. Configure DBMS providers
 
-Add to your `.csproj`. ANSI SQL is always available — only declare additional providers:
+Add to your `.csproj`. ANSI SQL is always available — only declare additional providers for multi-DBMS support.
+
+**SqlPartial is DBMS-agnostic.** You can define any provider by choosing a **slug** (used in file naming) and a **Display Name** (used in C# code and `Get()` calls).
 
 ```xml
 <PropertyGroup>
     <!-- slug:DisplayName pairs, semicolon-separated -->
-    <SqlPartialProviders>pg:PostgreSql;ms:SqlServer;my:MySql</SqlPartialProviders>
+    <SqlPartialProviders>pg:PostgreSql;ms:SqlServer;my:MySql;lt:Sqlite</SqlPartialProviders>
 </PropertyGroup>
 ```
 
-| Slug | Display name used in C# |
-|------|-------------------------|
-| `pg` | `PostgreSql`            |
-| `ms` | `SqlServer`             |
-| `my` | `MySql`                 |
+#### Suggestive List of Providers
+
+| Slug | Display Name (C#) | DBMS Reference |
+|------|-------------------|----------------|
+| `pg` | `PostgreSql`      | PostgreSQL     |
+| `ms` | `SqlServer`       | SQL Server     |
+| `my` | `MySql`           | MySQL          |
+| `ora`| `Oracle`          | Oracle         |
+| `lt` | `Sqlite`          | SQLite         |
+| ...  | ...               | Any other      |
 
 ### 2. Register your SQL files
 

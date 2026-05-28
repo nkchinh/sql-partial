@@ -35,12 +35,27 @@ ClassName.QueryName.sql          ← ANSI SQL, shared fallback for all DBMS
 ClassName.QueryName.an.sql       ← Same as above, explicit
 ClassName.QueryName.pg.sql       ← PostgreSQL override
 ClassName.QueryName.ms.sql       ← SQL Server override
-ClassName.QueryName.my.sql       ← MySQL override
+ClassName.QueryName.ora.sql      ← Oracle override
+ClassName.QueryName.lt.sql       ← SQLite override
 ```
 
 - **ClassName** must exactly match the `partial class` name (case-sensitive).
 - **QueryName** becomes the property name on the class (automatically prefixed with `Sql`).
 - **Slug** must match a slug in the project's `SqlPartialProviders`, or `an`.
+
+### Suggestive List of Providers
+
+| Slug | Display Name (C#) | DBMS Reference |
+|------|-------------------|----------------|
+| `pg` | `PostgreSql`      | PostgreSQL     |
+| `ms` | `SqlServer`       | SQL Server     |
+| `my` | `MySql`           | MySQL          |
+| `ora`| `Oracle`          | Oracle         |
+| `lt` | `Sqlite`          | SQLite         |
+| `mar`| `MariaDb`         | MariaDB        |
+| `fb` | `Firebird`        | Firebird       |
+| `ch` | `ClickHouse`      | ClickHouse     |
+| `dk` | `DuckDb`          | DuckDB         |
 
 Files in the same directory as the class → namespace matches automatically.
 Files in a subdirectory → namespace = `RootNamespace.SubDirName`.
