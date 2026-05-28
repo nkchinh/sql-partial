@@ -17,9 +17,9 @@ Writing SQL as string literals inside C# is a painful experience:
 Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to ANSI SQL automatically.
 
 ```
-UserRepo.GetById.sql        → ANSI fallback
-UserRepo.GetById.pg.sql     → PostgreSQL override
-UserRepo.GetById.ms.sql     → SQL Server override
+UserRepo.GetActive.sql        → ANSI fallback
+UserRepo.GetActive.pg.sql     → PostgreSQL override
+UserRepo.GetActive.ms.sql     → SQL Server override
 ```
 
 Generated output:
@@ -27,10 +27,11 @@ Generated output:
 ```csharp
 partial class UserRepo
 {
-    private static readonly SqlStrings SqlGetById = new SqlStrings(
-        @"SELECT id, name FROM users WHERE id = @id",
-        postgresql: @"SELECT id, name FROM users WHERE id = $1",
-        sqlserver:  @"SELECT id, name FROM users WHERE id = @id"
+    private static readonly SqlStrings SqlGetActive = new SqlStrings(
+        // From UserRepo.GetActive.sql
+        ansiSql:    @"SELECT * FROM Users WHERE IsActive = 1",
+        postgresql: @"SELECT * FROM Users WHERE IsActive = true",
+        sqlserver:  @"SELECT * FROM Users WHERE IsActive = 1"
     );
 }
 ```
@@ -39,10 +40,10 @@ Runtime usage:
 
 ```csharp
 // providerName comes from appsettings, e.g. "PostgreSql"
-var sql = UserRepo.SqlGetById.Get(providerName);
+string sql = UserRepo.SqlGetActive.Get(providerName);
 
-// For single-DBMS projects, use implicit conversion (returns AnsiSql)
-string sqlSimple = UserRepo.SqlGetById;
+// For single-DBMS projects, use implicit conversion (returns ANSI)
+string sqlSimple = UserRepo.SqlGetActive;
 ```
 
 ---
@@ -129,9 +130,81 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 ---
 
-## Optional: sharing `SqlStrings` across projects
+## Authoring Tips & Patterns
 
-By default the `SqlStrings` struct is generated in each project that uses the package. If you have multiple projects and want to share the same struct, generate it in one "core" project and reference it from the others.
+### 1. Parameter Documentation with Exclusion Blocks
+
+Use `--#exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
+
+**File: `ProductRepo.Search.sql`**
+```sql
+--#exclude
+-- Parameters for local testing & documentation
+DECLARE @SearchText NVARCHAR(100) = 'Laptop';
+DECLARE @CategoryId INT = 5; -- 5: Electronics
+DECLARE @Limit INT = 20;
+--/exclude
+
+SELECT p.Id, p.Name, p.Price
+FROM Products p
+WHERE p.Name LIKE '%' + @SearchText + '%'
+  AND (@CategoryId IS NULL OR p.CategoryId = @CategoryId)
+ORDER BY p.CreatedDate DESC
+OFFSET 0 ROWS FETCH NEXT @Limit ROWS ONLY
+```
+
+### 2. DBMS Overrides
+
+**File: `ProductRepo.Search.pg.sql`**
+```sql
+--#exclude
+-- PostgreSQL test parameters
+DECLARE SearchText TEXT := 'Laptop';
+DECLARE CategoryId INT := 5;
+DECLARE LimitCount INT := 20;
+--/exclude
+
+SELECT p.Id, p.Name, p.Price
+FROM Products p
+WHERE p.Name ILIKE '%' || :SearchText || '%'
+  AND (:CategoryId IS NULL OR p.CategoryId = :CategoryId)
+ORDER BY p.CreatedDate DESC
+LIMIT :LimitCount
+```
+
+**File: `ProductRepo.Search.ms.sql`**
+```sql
+--#exclude
+-- MS SQL test parameters
+DECLARE @SearchText NVARCHAR(255) = 'Laptop';
+DECLARE @CategoryId INT = 5;
+DECLARE @LimitCount INT = 20;
+--/exclude
+
+SELECT p.Id, p.Name, p.Price
+FROM Products p
+WHERE p.Name LIKE '%' + @SearchText + '%'
+  AND (@CategoryId IS NULL OR p.CategoryId = @CategoryId)
+ORDER BY p.CreatedDate DESC
+OFFSET 0 ROWS FETCH NEXT @LimitCount ROWS ONLY;
+```
+
+### 3. Line comments are stripped
+
+Lines beginning with `--` are removed from the generated constant, so you can annotate freely:
+
+```sql
+-- Returns a single user by primary key
+SELECT id, name, email FROM users WHERE id = @id
+```
+
+---
+
+## Advanced Configuration
+
+### Sharing `SqlStrings` across projects
+
+By default the `SqlStrings` struct is generated in each project. If you want to share the same struct:
 
 **Core project** — normal setup, struct is generated here.
 
@@ -153,38 +226,7 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 </PropertyGroup>
 ```
 
----
-
-## SQL authoring tips
-
-### Line comments are stripped
-
-Lines beginning with `--` are removed from the generated constant, so you can annotate freely:
-
-```sql
--- Returns a single user by primary key
-SELECT id, name, email
-FROM users
-WHERE id = @id
-```
-
-### Exclude blocks
-
-Wrap SQL that should exist only in your SQL editor/tests (and be stripped from the generated C#) with `--#exclude` / `--/exclude`.
-
-> **Note**: `--#testpart` / `--/testpart` is also supported for backward compatibility, but `#exclude` is the official marker.
-
-```sql
-SELECT id, name FROM users
---#exclude
-WHERE tenant_id = 'test-tenant'
---/exclude
-AND id = @id
-```
-
----
-
-## MSBuild property reference
+### MSBuild property reference
 
 | Property | Required | Default | Description |
 |---|---|---|---|
