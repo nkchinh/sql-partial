@@ -1,10 +1,14 @@
 <Project>
+    <PropertyGroup>
+        <SqlPartialProviders_Normalized>$(SqlPartialProviders.Replace(';', ','))</SqlPartialProviders_Normalized>
+    </PropertyGroup>
+
     <!-- Expose MSBuild properties to the generator via analyzer config -->
     <ItemGroup>
         <CompilerVisibleProperty Include="RootNamespace" />
         <CompilerVisibleProperty Include="MSBuildProjectDirectory" />
         <CompilerVisibleProperty Include="Nullable" />
-        <CompilerVisibleProperty Include="SqlPartialProviders" />
+        <CompilerVisibleProperty Include="SqlPartialProviders_Normalized" />
         <CompilerVisibleProperty Include="SqlPartialStringsNamespace" />
         <CompilerVisibleProperty Include="SqlPartialStringsType" />
     </ItemGroup>

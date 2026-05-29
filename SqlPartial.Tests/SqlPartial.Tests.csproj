@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <SqlPartialProviders>.pg.sql:PostgreSql,.ms.sql:SqlServer</SqlPartialProviders>
+    <SqlPartialProviders>.pg.sql:PostgreSql;.pgsql:PostgreSql;.ms.sql:SqlServer</SqlPartialProviders>
   </PropertyGroup>
 
   <ItemGroup>
