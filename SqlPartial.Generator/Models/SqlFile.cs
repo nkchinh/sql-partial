@@ -4,8 +4,8 @@ namespace SqlPartial.Generator.Models
 {
     /// <summary>
     /// Represents a single .sql AdditionalFile, parsed from its path and content.
-    /// Filename convention: ClassName.QueryName.sql        → provider = "an" (ANSI, default)
-    ///                      ClassName.QueryName.pg.sql     → provider = "pg"
+    /// Filename convention: ClassName.QueryName.sql        → provider = "AnsiSql" (ANSI, default)
+    ///                      ClassName.QueryName.pg.sql     → provider = "PostgreSql"
     /// </summary>
     internal sealed class SqlFile : System.IEquatable<SqlFile>
     {
@@ -22,10 +22,10 @@ namespace SqlPartial.Generator.Models
         public string QueryName { get; }
 
         /// <summary>
-        /// Provider slug this file belongs to.
-        /// "an" means ANSI / shared fallback.
+        /// Provider name this file belongs to.
+        /// "AnsiSql" means ANSI / shared fallback.
         /// </summary>
-        public string ProviderSlug { get; }
+        public string ProviderName { get; }
 
         /// <summary>SQL content, cleaned (comments and blank lines stripped).</summary>
         public string Content { get; }
@@ -35,14 +35,14 @@ namespace SqlPartial.Generator.Models
             string ns,
             string className,
             string queryName,
-            string providerSlug,
+            string providerName,
             string content)
         {
             FilePath = filePath;
             Namespace = ns;
             ClassName = className;
             QueryName = queryName;
-            ProviderSlug = providerSlug;
+            ProviderName = providerName;
             Content = content;
         }
 
@@ -52,12 +52,12 @@ namespace SqlPartial.Generator.Models
             Namespace == other.Namespace &&
             ClassName == other.ClassName &&
             QueryName == other.QueryName &&
-            ProviderSlug == other.ProviderSlug &&
+            ProviderName == other.ProviderName &&
             Content == other.Content;
 
         public override bool Equals(object? obj) => Equals(obj as SqlFile);
 
         public override int GetHashCode() =>
-            HashCodeHelper.Combine(FilePath, Namespace, ClassName, QueryName, ProviderSlug, Content);
+            HashCodeHelper.Combine(FilePath, Namespace, ClassName, QueryName, ProviderName, Content);
     }
 }

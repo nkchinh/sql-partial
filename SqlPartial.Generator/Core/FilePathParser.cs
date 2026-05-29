@@ -1,39 +1,76 @@
+using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
+using SqlPartial.Generator.Models;
 
 namespace SqlPartial.Generator.Core
 {
     internal static class FilePathParser
     {
-        private const string AnsiSlug = "an";
+        public const string AnsiSqlProviderName = "AnsiSql";
+        private static readonly string[] DefaultAnsiExtensions = { ".an.sql", ".sql" };
 
         /// <summary>
-        /// Parses a .sql file path into (namespace, className, queryName, providerSlug).
+        /// Parses a SQL file path into (namespace, className, queryName, providerName).
         ///
-        /// Convention:
-        ///   ClassName.QueryName.sql        → providerSlug = "an" (ANSI/default)
-        ///   ClassName.QueryName.an.sql     → providerSlug = "an"
-        ///   ClassName.QueryName.pg.sql     → providerSlug = "pg"
-        ///
-        /// Returns null if the filename does not match the expected convention
-        /// (must have at least 2 segments before .sql).
+        /// Matching Logic:
+        ///   1. Check if it ends with any configured extension (e.g. .pgsql, .pg.sql).
+        ///   2. Check if it ends with .an.sql or .sql (ANSI fallback).
+        ///   3. Strip the matched extension and split remaining filename into ClassName.QueryName.
         /// </summary>
-        public static (string ns, string className, string queryName, string providerSlug)?
-            TryParse(string filePath, string rootNamespace, string projectDir)
+        public static (string ns, string className, string queryName, string providerName)?
+            TryParse(string filePath, string rootNamespace, string projectDir, ImmutableArray<SqlProvider> providers)
         {
-            var filename = Path.GetFileNameWithoutExtension(filePath); // strips .sql
-            // filename is now e.g. "UserRepo.GetById" or "UserRepo.GetById.pg"
+            var fullPath = filePath;
+            var filename = Path.GetFileName(filePath);
 
-            var segments = filename.Split('.');
+            string? matchedExtension = null;
+            string providerName = AnsiSqlProviderName;
+
+            // 1. Try custom extensions (longest first to avoid partial matches)
+            var sortedProviders = providers
+                .OrderByDescending(p => p.Extension.Length)
+                .ThenBy(p => p.Extension);
+
+            foreach (var provider in sortedProviders)
+            {
+                if (filename.EndsWith(provider.Extension, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedExtension = provider.Extension;
+                    providerName = provider.Name;
+                    break;
+                }
+            }
+
+            // 2. Try default ANSI extensions if no custom match
+            if (matchedExtension == null)
+            {
+                foreach (var ext in DefaultAnsiExtensions)
+                {
+                    if (filename.EndsWith(ext, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        matchedExtension = ext;
+                        providerName = AnsiSqlProviderName;
+                        break;
+                    }
+                }
+            }
+
+            if (matchedExtension == null) return null;
+
+            // 3. Strip extension and split ClassName.QueryName
+            var baseName = filename.Substring(0, filename.Length - matchedExtension.Length);
+            var segments = baseName.Split('.');
+
             if (segments.Length < 2) return null;
 
             var className = segments[0];
             var queryName = segments[1];
-            var providerSlug = segments.Length >= 3 ? segments[2] : AnsiSlug;
 
             // Derive namespace from directory relative to project root
             var ns = DeriveNamespace(filePath, rootNamespace, projectDir);
 
-            return (ns, className, queryName, providerSlug);
+            return (ns, className, queryName, providerName);
         }
 
         private static string DeriveNamespace(string filePath, string rootNamespace, string projectDir)

@@ -40,9 +40,8 @@ namespace SqlPartial.Generator
                     return dir ?? string.Empty;
                 });
 
-            // ── AdditionalFiles: only .sql files marked as SqlPartial ────────
+            // ── AdditionalFiles: marked as SqlPartial ────────────────────────
             var sqlFiles = context.AdditionalTextsProvider
-                .Where(static f => f.Path.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
                 .Combine(context.AnalyzerConfigOptionsProvider)
                 .Where(static tuple =>
                 {
@@ -64,27 +63,39 @@ namespace SqlPartial.Generator
                 .Select(static (tuple, _) =>
                 {
                     var ((filePath, content), (cfg, projDir)) = tuple;
-                    var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir);
+                    var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.Providers);
                     if (parsed is null) return null;
 
-                    var (ns, className, queryName, providerSlug) = parsed.Value;
-                    return new SqlFile(filePath, ns, className, queryName, providerSlug, content);
+                    var (ns, className, queryName, providerName) = parsed.Value;
+                    return new SqlFile(filePath, ns, className, queryName, providerName, content);
                 })
                 .Where(static f => f is not null);
 
             // ── Collect all files, group into SqlQueryGroup ──────────────────
-            // Grouping must happen after Collect() to see all files together.
             var groups = parsedFiles
                 .Collect()
                 .SelectMany(static (files, _) =>
                     files
                         .GroupBy(f => (f!.Namespace, f.ClassName, f.QueryName))
-                        .Select(g => new SqlQueryGroup(
-                            g.Key.Namespace,
-                            g.Key.ClassName,
-                            g.Key.QueryName,
-                            g.ToImmutableDictionary(f => f!.ProviderSlug, f => f!.Content)
-                        ))
+                        .Select(g =>
+                        {
+                            var contents = new System.Collections.Generic.Dictionary<string, string>();
+                            foreach (var file in g)
+                            {
+                                // If multiple extensions map to same provider name, first one wins
+                                if (!contents.ContainsKey(file!.ProviderName))
+                                {
+                                    contents.Add(file.ProviderName, file.Content);
+                                }
+                            }
+
+                            return new SqlQueryGroup(
+                                g.Key.Namespace,
+                                g.Key.ClassName,
+                                g.Key.QueryName,
+                                contents.ToImmutableDictionary()
+                            );
+                        })
                 );
 
             // ── Collect groups per class and combine with config + nullable ──

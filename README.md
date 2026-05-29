@@ -17,9 +17,9 @@ Writing SQL as string literals inside C# is a painful experience:
 Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to ANSI SQL automatically.
 
 ```
-UserRepo.GetActive.sql        → ANSI fallback
-UserRepo.GetActive.pg.sql     → PostgreSQL override
-UserRepo.GetActive.ms.sql     → SQL Server override
+UserRepo.GetActive.ms.sql     → SQL Server version
+UserRepo.GetActive.pg.sql     → PostgreSQL version
+UserRepo.GetActive.sql        → (Optional) Generic ANSI fallback
 ```
 
 Generated output:
@@ -70,31 +70,33 @@ npx skills add nkchinh/sql-partial --skill sql-partial
 
 Add to your `.csproj`. ANSI SQL is always available — only declare additional providers for multi-DBMS support.
 
-**SqlPartial is DBMS-agnostic.** You can define any provider by choosing a **slug** (used in file naming) and a **Display Name** (used in C# code and `Get()` calls).
+**SqlPartial is DBMS-agnostic.** You can define any provider by choosing an **extension** (matched at the end of the filename) and a **Display Name** (used in C# code and `Get()` calls). Multiple extensions can map to the same DBMS.
 
 ```xml
 <PropertyGroup>
-    <!-- slug:DisplayName pairs, semicolon-separated -->
-    <SqlPartialProviders>pg:PostgreSql;ms:SqlServer;my:MySql;lt:Sqlite</SqlPartialProviders>
+    <!-- extension:DisplayName pairs, semicolon-separated -->
+    <SqlPartialProviders>.pg.sql:PostgreSql;.pgsql:PostgreSql;.ms.sql:SqlServer;.lt.sql:Sqlite</SqlPartialProviders>
 </PropertyGroup>
 ```
 
 #### Suggestive List of Providers
 
-| Slug | Display Name (C#) | DBMS Reference |
-|------|-------------------|----------------|
-| `pg` | `PostgreSql`      | PostgreSQL     |
-| `ms` | `SqlServer`       | SQL Server     |
-| `my` | `MySql`           | MySQL          |
-| `ora`| `Oracle`          | Oracle         |
-| `lt` | `Sqlite`          | SQLite         |
-| ...  | ...               | Any other      |
+| Extension | Display Name (C#) | DBMS Reference |
+|-----------|-------------------|----------------|
+| `.pg.sql` | `PostgreSql`      | PostgreSQL     |
+| `.pgsql`  | `PostgreSql`      | PostgreSQL     |
+| `.ms.sql` | `SqlServer`       | SQL Server     |
+| `.my.sql` | `MySql`           | MySQL          |
+| `.lt.sql` | `Sqlite`          | SQLite         |
+| `.ora.sql`| `Oracle`          | Oracle         |
+|  ...      | ...               | Any other      |
 
 ### 2. Register your SQL files
 
 ```xml
 <ItemGroup>
-    <AdditionalFiles Include="**/*.*.sql" Exclude="obj/**/*;bin/**/*">
+    <!-- Include all extensions you configured -->
+    <AdditionalFiles Include="**/*.sql;**/*.*.pgsql" Exclude="obj/**/*;bin/**/*">
         <SourceItemType>SqlPartial</SourceItemType>
     </AdditionalFiles>
 </ItemGroup>
@@ -119,14 +121,15 @@ The namespace is derived automatically from `$(RootNamespace)` + the relative di
 
 ```
 ClassName.QueryName.sql          ANSI SQL (shared fallback)
-ClassName.QueryName.an.sql       Same as above — explicit ANSI slug
+ClassName.QueryName.an.sql       Same as above — explicit ANSI variant
 ClassName.QueryName.pg.sql       PostgreSQL-specific
+ClassName.QueryName.pgsql        Also PostgreSQL (if configured)
 ClassName.QueryName.ms.sql       SQL Server-specific
 ```
 
 - **ClassName** — must match the `partial class` name exactly.
 - **QueryName** — becomes the property name on the class (prefixed with `Sql`).
-- **Slug** — must match a slug declared in `SqlPartialProviders`, or `an` for ANSI.
+- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql`/`.an.sql` for ANSI.
 
 ---
 
@@ -136,58 +139,47 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 Use `--#exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
 
-**File: `ProductRepo.Search.sql`**
+**File: `ProductRepo.GetById.sql`** (Truly generic ANSI SQL)
 ```sql
 --#exclude
 -- Parameters for local testing & documentation
+DECLARE @Id INT = 1;
+--/exclude
+
+SELECT p.Id, p.Name, p.Price
+FROM Products p
+WHERE p.Id = @Id
+```
+
+### 2. Handling Multi-DBMS Transitions
+
+If your original query was written for a specific DBMS (e.g., SQL Server), **rename it** when adding support for a second one. This prevents your "generic fallback" from containing incompatible syntax.
+
+**File: `ProductRepo.Search.ms.sql`** (SQL Server version)
+```sql
+--#exclude
 DECLARE @SearchText NVARCHAR(100) = 'Laptop';
-DECLARE @CategoryId INT = 5; -- 5: Electronics
-DECLARE @Limit INT = 20;
 --/exclude
 
-SELECT p.Id, p.Name, p.Price
-FROM Products p
+SELECT p.Id, p.Name FROM Products p
 WHERE p.Name LIKE '%' + @SearchText + '%'
-  AND (@CategoryId IS NULL OR p.CategoryId = @CategoryId)
 ORDER BY p.CreatedDate DESC
-OFFSET 0 ROWS FETCH NEXT @Limit ROWS ONLY
+OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY
 ```
 
-### 2. DBMS Overrides
-
-**File: `ProductRepo.Search.pg.sql`**
+**File: `ProductRepo.Search.pg.sql`** (PostgreSQL version)
 ```sql
 --#exclude
--- PostgreSQL test parameters
 DECLARE SearchText TEXT := 'Laptop';
-DECLARE CategoryId INT := 5;
-DECLARE LimitCount INT := 20;
 --/exclude
 
-SELECT p.Id, p.Name, p.Price
-FROM Products p
+SELECT p.Id, p.Name FROM Products p
 WHERE p.Name ILIKE '%' || :SearchText || '%'
-  AND (:CategoryId IS NULL OR p.CategoryId = :CategoryId)
 ORDER BY p.CreatedDate DESC
-LIMIT :LimitCount
+LIMIT 10
 ```
 
-**File: `ProductRepo.Search.ms.sql`**
-```sql
---#exclude
--- MS SQL test parameters
-DECLARE @SearchText NVARCHAR(255) = 'Laptop';
-DECLARE @CategoryId INT = 5;
-DECLARE @LimitCount INT = 20;
---/exclude
-
-SELECT p.Id, p.Name, p.Price
-FROM Products p
-WHERE p.Name LIKE '%' + @SearchText + '%'
-  AND (@CategoryId IS NULL OR p.CategoryId = @CategoryId)
-ORDER BY p.CreatedDate DESC
-OFFSET 0 ROWS FETCH NEXT @LimitCount ROWS ONLY;
-```
+> **Rule of thumb**: The base `.sql` file should only contain code that works across **all** your configured providers. If the syntax differs, use explicit extensions.
 
 ### 3. Line comments are stripped
 
@@ -230,7 +222,7 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 
 | Property | Required | Default | Description |
 |---|---|---|---|
-| `SqlPartialProviders` | No | _(none)_ | Semicolon-separated `slug:Name` pairs |
+| `SqlPartialProviders` | No | _(none)_ | Semicolon-separated `extension:DisplayName` pairs |
 | `SqlPartialStringsNamespace` | No | `$(RootNamespace)` | Namespace for the generated `SqlStrings` struct |
 | `SqlPartialStringsType` | No | _(none)_ | Fully-qualified type to use instead of generating `SqlStrings` |
 

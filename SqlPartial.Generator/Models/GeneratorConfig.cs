@@ -18,9 +18,14 @@ namespace SqlPartial.Generator.Models
 
         /// <summary>
         /// Configured DBMS providers (excluding ANSI which is always implicit).
-        /// Parsed from SqlPartialProviders = "pg:PostgreSql;ms:SqlServer"
+        /// Parsed from SqlPartialProviders = "pg.sql:PostgreSql;pgsql:PostgreSql"
         /// </summary>
         public ImmutableArray<SqlProvider> Providers { get; } = providers;
+
+        /// <summary>
+        /// Returns the unique DBMS provider names (e.g., if both .pg.sql and .pgsql map to PostgreSql).
+        /// </summary>
+        public System.Collections.Generic.IEnumerable<string> DistinctProviderNames => Providers.Select(p => p.Name).Distinct();
 
         /// <summary>
         /// Namespace for the SqlStrings struct.

@@ -35,7 +35,7 @@ Before touching any files, verify:
 
 ### 2. The Migration & Transition Rule (CRITICAL)
 If you are moving from a single DBMS (e.g., just ANSI or just MS SQL) to supporting multiple:
-1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[slug].sql` (e.g., `.ms.sql`).
+1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[extension]` (e.g., `.ms.sql`).
 2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `--#testpart` / `--/testpart` to `--#exclude` / `--/exclude`. 
     - *Why*: `#testpart` is deprecated. `#exclude` is the modern standard for SqlPartial.Generator.
 3.  **Preserve & Sync Testing Logic**: You **MUST** copy the setup logic (DECLAREs, temp tables) from the original exclusion block to **EVERY** new provider-specific file. 
@@ -66,7 +66,7 @@ DECLARE @Id INT = 1; -- Preserved from original!
 SELECT * FROM Users WHERE Id = $1
 ```
 
-- **Naming**: Always `ClassName.QueryName.[slug].sql`.
+- **Naming**: Always `ClassName.QueryName.[extension]`. (e.g., `.pg.sql`, `.pgsql`).
 - **Location**: `.sql` and `.cs` files **MUST** be in the same directory.
 - **Exclusion Block Placement**: Prefer placing `--#exclude` blocks at the top of the file for setup/variable declarations (e.g., `DECLARE @Id ...`).
 
@@ -89,12 +89,13 @@ To keep your workflow efficient, consult these detailed guides when needed:
 | `Class.Query.sql` | **ANSI Fallback** (Default) | `UserRepo.GetById.sql` |
 | `Class.Query.an.sql` | **ANSI Fallback** (Explicit variant) | `UserRepo.GetById.an.sql` |
 | `Class.Query.pg.sql` | **PostgreSQL** specific override | `UserRepo.GetById.pg.sql` |
+| `Class.Query.pgsql` | **PostgreSQL** (Custom extension) | `UserRepo.GetById.pgsql` |
 | `Class.Query.ms.sql` | **SQL Server** specific override | `UserRepo.GetById.ms.sql` |
 | `Class.Query.lt.sql` | **SQLite** specific override | `UserRepo.GetById.lt.sql` |
 
 *Note:*
 - *`.sql` and `.an.sql` are functionally identical and both serve as the global fallback.*
-- *Slugs are user-defined in `.csproj`. Standard suggestions: `pg`, `ms`, `my`, `ora`, `lt`, `mar`, `ch`.*
+- *Extensions are user-defined in `.csproj`. Standard suggestions: `.pg.sql`, `.pgsql`, `.ms.sql`, `.my.sql`, `.ora.sql`, `.lt.sql`.*
 
 ---
 
@@ -120,11 +121,11 @@ Add this to `.csproj` to get started:
 
 ```xml
 <PropertyGroup>
-  <SqlPartialProviders>pg:PostgreSql;ms:SqlServer</SqlPartialProviders>
+  <SqlPartialProviders>.pg.sql:PostgreSql;.pgsql:PostgreSql;.ms.sql:SqlServer</SqlPartialProviders>
 </PropertyGroup>
 
 <ItemGroup>
-  <AdditionalFiles Include="**/*.*.sql" Exclude="obj/**/*;bin/**/*">
+  <AdditionalFiles Include="**/*.sql;**/*.*.pgsql" Exclude="obj/**/*;bin/**/*">
     <SourceItemType>SqlPartial</SourceItemType>
   </AdditionalFiles>
 </ItemGroup>

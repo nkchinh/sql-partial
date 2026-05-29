@@ -6,7 +6,8 @@ This guide covers common issues encountered when using `SqlPartial.Generator`.
 
 If you've created a `.sql` file but the corresponding `Sql{QueryName}` property is missing:
 
-- **Check Filename**: It must follow `ClassName.QueryName.[slug].sql`. `ClassName` is case-sensitive and must match the C# class exactly.
+- **Check Filename**: It must follow `ClassName.QueryName.[extension]`. `ClassName` is case-sensitive and must match the C# class exactly.
+- **Check Extension**: Ensure the extension (e.g., `.pg.sql`) is correctly registered in `SqlPartialProviders`.
 - **Check Namespace**: The generator places the partial class in a namespace based on the file's relative path. If your `.cs` file is in a different namespace, they won't merge.
   - *Fix*: Move the `.sql` file to the same folder as the `.cs` file.
 - **Check MSBuild Metadata**: Ensure the `.sql` file is included in `.csproj` with `<SourceItemType>SqlPartial</SourceItemType>`.

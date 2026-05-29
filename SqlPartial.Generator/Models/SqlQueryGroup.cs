@@ -6,29 +6,29 @@ namespace SqlPartial.Generator.Models
 {
     /// <summary>
     /// All .sql files that belong to one (Namespace, ClassName, QueryName) triple,
-    /// keyed by provider slug.
-    /// e.g. UserRepo.GetById → { "an": "SELECT …", "pg": "SELECT …" }
+    /// keyed by provider name.
+    /// e.g. UserRepo.GetById → { "AnsiSql": "SELECT …", "PostgreSql": "SELECT …" }
     /// </summary>
     internal sealed class SqlQueryGroup(
         string ns,
         string className,
         string queryName,
-        ImmutableDictionary<string, string> contentBySlug) : System.IEquatable<SqlQueryGroup>
+        ImmutableDictionary<string, string> contentByProviderName) : System.IEquatable<SqlQueryGroup>
     {
         public string Namespace { get; } = ns;
         public string ClassName { get; } = className;
         public string QueryName { get; } = queryName;
 
-        /// <summary>slug → cleaned SQL content</summary>
-        public ImmutableDictionary<string, string> ContentBySlug { get; } = contentBySlug;
+        /// <summary>provider name → cleaned SQL content</summary>
+        public ImmutableDictionary<string, string> ContentByProviderName { get; } = contentByProviderName;
 
 
         /// <summary>
-        /// Returns content for a slug, falling back to "an" (ANSI) if not present.
+        /// Returns content for a provider name, falling back to "AnsiSql" (ANSI) if not present.
         /// </summary>
-        public string GetContent(string slug) =>
-            ContentBySlug.TryGetValue(slug, out var v) ? v :
-            ContentBySlug.TryGetValue("an", out var ansi) ? ansi :
+        public string GetContent(string providerName) =>
+            ContentByProviderName.TryGetValue(providerName, out var v) ? v :
+            ContentByProviderName.TryGetValue("AnsiSql", out var ansi) ? ansi :
             string.Empty;
 
         public bool Equals(SqlQueryGroup? other) =>
@@ -36,14 +36,14 @@ namespace SqlPartial.Generator.Models
             Namespace == other.Namespace &&
             ClassName == other.ClassName &&
             QueryName == other.QueryName &&
-            ContentBySlug.Count == other.ContentBySlug.Count &&
-            !ContentBySlug.Keys.Any(k =>
-                !other.ContentBySlug.TryGetValue(k, out var v) ||
-                v != ContentBySlug[k]);
+            ContentByProviderName.Count == other.ContentByProviderName.Count &&
+            !ContentByProviderName.Keys.Any(k =>
+                !other.ContentByProviderName.TryGetValue(k, out var v) ||
+                v != ContentByProviderName[k]);
 
         public override bool Equals(object? obj) => Equals(obj as SqlQueryGroup);
 
         public override int GetHashCode() =>
-            HashCodeHelper.Combine(Namespace, ClassName, QueryName, ContentBySlug.Count);
+            HashCodeHelper.Combine(Namespace, ClassName, QueryName, ContentByProviderName.Count);
     }
 }

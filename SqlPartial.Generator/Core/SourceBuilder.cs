@@ -38,27 +38,27 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine();
 
             // One property per configured provider
-            foreach (var provider in config.Providers)
+            foreach (var providerName in config.DistinctProviderNames)
             {
-                sb.AppendLine($"        /// <summary>{provider.Name} specific SQL. Falls back to <see cref=\"AnsiSql\"/> when null.</summary>");
+                sb.AppendLine($"        /// <summary>{providerName} specific SQL. Falls back to <see cref=\"AnsiSql\"/> when null.</summary>");
                 var type = supportsNullable ? "string?" : "string";
-                sb.AppendLine($"        public {type} {provider.Name} {{ get; }}");
+                sb.AppendLine($"        public {type} {providerName} {{ get; }}");
                 sb.AppendLine();
             }
 
             // Constructor
             var paramType = supportsNullable ? "string?" : "string";
             sb.Append("        public SqlStrings(string ansiSql");
-            foreach (var provider in config.Providers)
+            foreach (var providerName in config.DistinctProviderNames)
             {
-                sb.Append($", {paramType} {provider.Name.ToLowerInvariant()} = null");
+                sb.Append($", {paramType} {providerName.ToLowerInvariant()} = null");
             }
             sb.AppendLine(")");
             sb.AppendLine("        {");
             sb.AppendLine("            AnsiSql = ansiSql;");
-            foreach (var provider in config.Providers)
+            foreach (var providerName in config.DistinctProviderNames)
             {
-                sb.AppendLine($"            {provider.Name} = {provider.Name.ToLowerInvariant()};");
+                sb.AppendLine($"            {providerName} = {providerName.ToLowerInvariant()};");
             }
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -77,10 +77,10 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("        {");
             sb.AppendLine("            switch (providerName)");
             sb.AppendLine("            {");
-            foreach (var provider in config.Providers)
+            foreach (var providerName in config.DistinctProviderNames)
             {
-                sb.AppendLine($"                case \"{provider.Name}\":");
-                sb.AppendLine($"                    return {provider.Name} ?? AnsiSql;");
+                sb.AppendLine($"                case \"{providerName}\":");
+                sb.AppendLine($"                    return {providerName} ?? AnsiSql;");
             }
             sb.AppendLine("                default:");
             sb.AppendLine("                    return AnsiSql;");
@@ -123,17 +123,17 @@ namespace SqlPartial.Generator.Core
 
             foreach (var group in groups)
             {
-                var ansiContent = group.GetContent("an");
+                var ansiContent = group.GetContent(FilePathParser.AnsiSqlProviderName);
                 sb.AppendLine($"        private static readonly {stringsType} Sql{group.QueryName} = new {stringsType}(");
                 sb.Append($"            @\"{ansiContent}\"");
 
-                // Provider-specific — only emit when the file exists for that slug
-                foreach (var provider in config.Providers)
+                // Provider-specific — only emit when the file exists for that provider name
+                foreach (var providerName in config.DistinctProviderNames)
                 {
-                    if (group.ContentBySlug.TryGetValue(provider.Slug, out var content))
+                    if (group.ContentByProviderName.TryGetValue(providerName, out var content))
                     {
                         sb.AppendLine(",");
-                        sb.Append($"            {provider.Name.ToLowerInvariant()}: @\"{content}\"");
+                        sb.Append($"            {providerName.ToLowerInvariant()}: @\"{content}\"");
                     }
                 }
 

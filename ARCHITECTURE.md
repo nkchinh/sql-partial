@@ -17,13 +17,13 @@ SqlPartial.Generator/
 ├── SqlPartialGenerator.cs          Entry point — pipeline declaration
 ├── Core/
 │   ├── ConfigParser.cs             Reads MSBuild properties → GeneratorConfig
-│   ├── FilePathParser.cs           Parses file paths → (ns, className, queryName, slug)
+│   ├── FilePathParser.cs           Parses file paths → (ns, className, queryName, providerName)
 │   ├── SqlContentCleaner.cs        Strips comments, exclude blocks, escapes verbatim strings
 │   └── SourceBuilder.cs            Generates C# source from models
 ├── Models/
 │   ├── GeneratorConfig.cs          Project-level configuration (providers, namespaces...)
-│   ├── SqlProvider.cs              A DBMS provider (slug + display name)
-│   ├── SqlFile.cs                  A parsed .sql file
+│   ├── SqlProvider.cs              A DBMS provider (extension + display name)
+│   ├── SqlFile.cs                  A parsed file with its associated provider
 │   └── SqlQueryGroup.cs            Group of SqlFiles with same (ns, className, queryName)
 └── build/ (implicit in NuGet)
     └── NkChinh.SqlPartial.Generator.targets   MSBuild targets packaged in NuGet
@@ -35,7 +35,7 @@ SqlPartial.Generator/
 
 ```
 AdditionalTextsProvider
-    │ filter: .sql + SourceItemType=SqlPartial
+    │ filter: SourceItemType=SqlPartial (Any extension!)
     │ select: read content, clean
     ▼
 (FilePath, Content)
@@ -63,7 +63,7 @@ The first `Collect()` gathers all `SqlFile` objects so they can be grouped by qu
 
 The second `Collect()` gathers all `SqlQueryGroup` objects to group them by class, allowing for a single `.g.cs` file to be generated per class instead of one file per query.
 
-**Trade-off**: Whenever any `.sql` file changes, the entire pipeline after `Collect()` re-executes. This is a necessary trade-off because grouping is a global operation. For the typical number of `.sql` files in a project, this cost is negligible.
+**Trade-off**: Whenever any tracked file changes, the entire pipeline after `Collect()` re-executes. This is a necessary trade-off because grouping is a global operation. For the typical number of files in a project, this cost is negligible.
 
 ---
 
@@ -71,29 +71,29 @@ The second `Collect()` gathers all `SqlQueryGroup` objects to group them by clas
 
 ### `GeneratorConfig`
 
-Parsed from MSBuild global properties once. It remains stable between `.sql` file edits — Roslyn caches it and does not re-parse unless the project file changes.
+Parsed from MSBuild global properties once. It remains stable between file edits — Roslyn caches it and does not re-parse unless the project file changes.
 
 | Property | MSBuild source | Description |
 |---|---|---|
 | `RootNamespace` | `build_property.RootNamespace` | The project's root namespace |
-| `Providers` | `build_property.SqlPartialProviders` | List of DBMS providers |
+| `Providers` | `build_property.SqlPartialProviders` | List of extensions mapped to provider names |
 | `SqlStringsNamespace` | `build_property.SqlPartialStringsNamespace` | Namespace for the `SqlStrings` struct |
 | `ExternalSqlStringsType` | `build_property.SqlPartialStringsType` | Use a struct from another assembly |
 | `NullableEnabled` | `build_property.Nullable` | Whether to emit `#nullable enable` |
 
 ### `SqlFile`
 
-Represents a parsed `.sql` file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. Without `IEquatable`, the pipeline would always re-execute even if content remained unchanged.
+Represents a parsed SQL file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. It stores the resolved `ProviderName` (e.g., `"PostgreSql"` or `"AnsiSql"`).
 
 ### `SqlQueryGroup`
 
-Groups all `SqlFile` objects with the same `(Namespace, ClassName, QueryName)`. It contains an `ImmutableDictionary<string, string>` mapping slug → SQL content.
+Groups all `SqlFile` objects with the same `(Namespace, ClassName, QueryName)`. It contains an `ImmutableDictionary<string, string>` mapping **ProviderName** → SQL content.
 
-`GetContent(slug)` method:
+`GetContent(providerName)` method:
 ```
-slug exists in dict → returns content for that slug
-slug not found      → falls back to "an" (ANSI)
-"an" missing        → returns string.Empty
+providerName exists in dict → returns content for that provider
+providerName not found      → falls back to "AnsiSql"
+"AnsiSql" missing           → returns string.Empty
 ```
 
 ---
@@ -104,7 +104,7 @@ slug not found      → falls back to "an" (ANSI)
 
 Other generators often use a custom item type (like `<SqlPartial>`) and then transform it to `<AdditionalFiles>`. This approach breaks the file-watching mechanism of the Roslyn Language Server in VSCode/C# DevKit: the Language Server only watches `AdditionalFiles` declared directly, not those transformed via an intermediate item type.
 
-Solution: Users declare `<AdditionalFiles>` directly with the metadata `<SourceItemType>SqlPartial</SourceItemType>`. The Language Server sees the file path directly and sets up the watcher correctly — the generator triggers automatically when the `.sql` file is saved.
+Solution: Users declare `<AdditionalFiles>` trực tiếp với metadata `<SourceItemType>SqlPartial</SourceItemType>`. The Language Server sees the file path directly and sets up the watcher correctly — the generator triggers automatically when the file is saved. Since we use `extension-based` matching, the generator does not hardcode a `.sql` check in its initial filter, allowing any extension to be used.
 
 ### `CompilerVisibleProperty` and `CompilerVisibleItemMetadata`
 
@@ -114,7 +114,7 @@ These are implementation details of the package — users do not and should not 
 
 ### `UpToDateCheckInput`
 
-Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects `.sql` changes and triggers a full build. Without this, FUTDC might skip the build even if a `.sql` file has changed.
+Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects changes in tracked files and triggers a full build. Without this, FUTDC might skip the build even if a SQL file has changed.
 
 ---
 
@@ -122,15 +122,15 @@ Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects `.sql` changes and tr
 
 ### `SqlStrings` struct
 
-Generated once per project. The struct is `readonly` to ensure immutability. The `AnsiSql` property is always present; provider properties are `string?` (or `string` depending on the C# version) to distinguish "no specific SQL" from "empty SQL."
+Generated once per project (unless `ExternalSqlStringsType` is set). The struct is `readonly` to ensure immutability.
 
-**Special Features**:
+**Key Features**:
+- **Deduplication**: If multiple extensions (e.g., `.pg.sql` and `.pgsql`) map to the same `PostgreSql` provider, the struct will only contain one `PostgreSql` property.
 - **Backward Compatibility**: The generator automatically detects the project's C# version. If C# < 8.0, it won't emit `#nullable` directives and will use `string` instead of `string?`.
 - **Implicit Conversion**: The `SqlStrings` struct can be implicitly cast to `string`, returning `AnsiSql`. This keeps code concise for projects using a single DBMS.
+- **Get(string providerName)**: Performs a switch on the Display Name (e.g., `"PostgreSql"`) to return the appropriate string.
 
 All properties use `{ get; }` (getter-only) and are initialized via the constructor for compatibility with C# 7.3.
-
-The `Get(string providerName)` method uses a `switch` on the display name (not the slug) because this is the value users configure in their application settings — for example, `"PostgreSql"` instead of `"pg"`.
 
 ### Partial Class
 
@@ -140,65 +140,50 @@ Generated properties are `private static readonly` and prefixed with `Sql` (e.g.
 
 ---
 
-## File Naming Convention
+## File Path Parsing Logic — `FilePathParser`
 
-```
-ClassName.QueryName.sql          → providerSlug = "an"
-ClassName.QueryName.an.sql       → providerSlug = "an"  (explicit)
-ClassName.QueryName.pg.sql       → providerSlug = "pg"
-```
+The parser uses a **longest-match-first** strategy against configured extensions to resolve the provider.
 
-`FilePathParser.TryParse` decomposes paths according to this convention. Files that do not match the pattern (fewer than 2 segments before `.sql`) are ignored — they do not cause build errors.
+1.  **Custom Extensions**: It checks if the filename ends with any extension configured in `SqlPartialProviders` (sorted by length descending to prevent partial matching).
+2.  **ANSI Fallback**: If no match, it checks for hardcoded defaults: `.an.sql` and `.sql`, mapping them to `AnsiSql`.
+3.  **Decomposition**: The matched extension is stripped, and the remaining filename is split by `.` to extract `ClassName` and `QueryName`.
+
+**Example**: `UserRepo.GetUsers.pg.sql`
+- Configured: `.pg.sql:PostgreSql`
+- Matched Extension: `.pg.sql` → `ProviderName = "PostgreSql"`
+- Class: `UserRepo`, Query: `GetUsers`
 
 ---
 
 ## SQL Content Processing — `SqlContentCleaner`
 
 Performed in order:
-1. Strip editor support/test blocks:
-   - `--#exclude … --/exclude` (official)
-   - `--#testpart … --/testpart` (legacy support)
-   Both are case-insensitive and support spaces after `--`.
-2. Strip blank lines and line comments (`--`).
-3. Escape `"` to `""` for C# verbatim string literals (`@"..."`).
+1.  **Strip Exclusion Blocks**:
+    - `--#exclude … --/exclude` (official)
+    - `--#testpart … --/testpart` (legacy support)
+    Both are case-insensitive and support spaces after `--`.
+2.  **Strip Comments**: Removes lines starting with `--` and blank lines.
+3.  **Escape Double Quotes**: Converts `"` to `""` for C# verbatim string literals (`@"..."`).
 
 ---
 
 ## NuGet Packaging
 
-The `.targets` file must be located at `build/NkChinh.SqlPartial.Generator.targets` within the NuGet package to be automatically imported. Configured in the generator's `.csproj`:
-
-```xml
-<ItemGroup>
-    <None Include="NkChinh.SqlPartial.Generator.targets" Pack="true" PackagePath="build\" />
-</ItemGroup>
-```
-
-The generator assembly must be marked as an analyzer:
-
-```xml
-<ItemGroup>
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true"
-          PackagePath="analyzers\dotnet\cs\" Visible="false" />
-</ItemGroup>
-```
+The `.targets` file must be located at `build/NkChinh.SqlPartial.Generator.targets` within the NuGet package to be automatically imported. The generator assembly must be marked as an analyzer and placed in `analyzers/dotnet/cs/`.
 
 ---
 
 ## Adding a New Provider
 
-The generator is entirely DBMS-agnostic. No code changes are required to support a new database system. Users simply add a new `slug:DisplayName` pair to `SqlPartialProviders` in their `.csproj`:
+The generator is entirely DBMS-agnostic. To support a new system or custom extension, add an `extension:DisplayName` pair to `SqlPartialProviders` in their `.csproj`:
 
 ```xml
 <PropertyGroup>
-    <SqlPartialProviders>pg:PostgreSql;ms:SqlServer;ora:Oracle;lt:Sqlite</SqlPartialProviders>
+    <SqlPartialProviders>.pgsql:PostgreSql;.ms.sql:SqlServer;.lt.sql:Sqlite</SqlPartialProviders>
 </PropertyGroup>
 ```
 
-The generator automatically:
-1. Adds a corresponding property to the `SqlStrings` struct.
-2. Updates the `SqlStrings` constructor to accept the new provider's SQL.
-3. Adds a case to the `Get(string providerName)` method to return the SQL when queried by the display name (e.g., `"Oracle"`).
+The generator automatically adds the corresponding property to the `SqlStrings` struct and updates the `Get()` method.
 
 ---
 

@@ -39,7 +39,7 @@ namespace SqlPartial.Generator.Core
         }
 
         /// <summary>
-        /// Parses "pg:PostgreSql;ms:SqlServer;my:MySql" into SqlProvider list.
+        /// Parses "pg.sql:PostgreSql;pgsql:PostgreSql;ms.sql:SqlServer" into SqlProvider list.
         /// </summary>
         private static ImmutableArray<SqlProvider> ParseProviders(string? raw)
         {
@@ -53,12 +53,18 @@ namespace SqlPartial.Generator.Core
                 var parts = entry.Trim().Split(':');
                 if (parts.Length != 2) continue;
 
-                var slug = parts[0].Trim();
+                var extension = parts[0].Trim();
                 var name = parts[1].Trim();
 
-                if (string.IsNullOrEmpty(slug) || string.IsNullOrEmpty(name)) continue;
+                if (string.IsNullOrEmpty(extension) || string.IsNullOrEmpty(name)) continue;
 
-                builder.Add(new SqlProvider(slug, name));
+                // Ensure extension starts with a dot for consistent matching later
+                if (!extension.StartsWith("."))
+                {
+                    extension = "." + extension;
+                }
+
+                builder.Add(new SqlProvider(extension, name));
             }
 
             return builder.ToImmutable();

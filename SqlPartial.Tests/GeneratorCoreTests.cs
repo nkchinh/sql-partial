@@ -65,7 +65,7 @@ namespace SqlPartial.Tests
         {
             var config = new GeneratorConfig(
                 "MyProject",
-                [new SqlProvider("pg", "PostgreSql")],
+                [new SqlProvider(".pg.sql", "PostgreSql")],
                 "MyProject.Sql",
                 null,
                 true);
@@ -88,7 +88,7 @@ namespace SqlPartial.Tests
         {
             var config = new GeneratorConfig(
                 "MyProject",
-                [new SqlProvider("pg", "PostgreSql")],
+                [new SqlProvider(".pg.sql", "PostgreSql")],
                 "MyProject.Sql",
                 null,
                 true);
@@ -105,22 +105,22 @@ namespace SqlPartial.Tests
         {
             var config = new GeneratorConfig(
                 "MyProject",
-                [new SqlProvider("pg", "PostgreSql")],
+                [new SqlProvider(".pg.sql", "PostgreSql")],
                 "MyProject.Sql",
                 null,
                 false);
 
-            var contentBySlug = new Dictionary<string, string>
+            var contentByProvider = new Dictionary<string, string>
             {
-                { "an", "SELECT 1;" },
-                { "pg", "SELECT 2;" }
+                { FilePathParser.AnsiSqlProviderName, "SELECT 1;" },
+                { "PostgreSql", "SELECT 2;" }
             }.ToImmutableDictionary();
 
             var groups = ImmutableArray.Create(new SqlQueryGroup(
                 "MyProject.Repos",
                 "UserRepo",
                 "GetUsers",
-                contentBySlug));
+                contentByProvider));
 
             var source = SourceBuilder.BuildPartialClass(
                 "MyProject.Repos",
@@ -151,7 +151,7 @@ namespace SqlPartial.Tests
                 "MyProject.Repos",
                 "UserRepo",
                 "GetUsers",
-                new Dictionary<string, string> { { "an", "SELECT 1;" } }.ToImmutableDictionary()));
+                new Dictionary<string, string> { { FilePathParser.AnsiSqlProviderName, "SELECT 1;" } }.ToImmutableDictionary()));
 
             var source = SourceBuilder.BuildPartialClass(
                 "MyProject.Repos",
@@ -164,26 +164,32 @@ namespace SqlPartial.Tests
         }
 
         [Theory]
-        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "an")]
-        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.pg.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "pg")]
-        [InlineData(@"C:\Proj\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj", "UserRepo", "GetUsers", "an")]
+        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", FilePathParser.AnsiSqlProviderName)]
+        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.pg.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "PostgreSql")]
+        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.pgsql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "PostgreSql")]
+        [InlineData(@"C:\Proj\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj", "UserRepo", "GetUsers", FilePathParser.AnsiSqlProviderName)]
         public void FilePathParser_ShouldParseCorrectly(
             string path, string rootNs, string projDir,
-            string expectedNs, string expectedClass, string expectedQuery, string expectedSlug)
+            string expectedNs, string expectedClass, string expectedQuery, string expectedProvider)
         {
-            var result = FilePathParser.TryParse(path, rootNs, projDir);
+            var providers = ImmutableArray.Create(
+                new SqlProvider(".pg.sql", "PostgreSql"),
+                new SqlProvider(".pgsql", "PostgreSql")
+            );
+
+            var result = FilePathParser.TryParse(path, rootNs, projDir, providers);
 
             Assert.NotNull(result);
             Assert.Equal(expectedNs, result.Value.ns);
             Assert.Equal(expectedClass, result.Value.className);
             Assert.Equal(expectedQuery, result.Value.queryName);
-            Assert.Equal(expectedSlug, result.Value.providerSlug);
+            Assert.Equal(expectedProvider, result.Value.providerName);
         }
 
         [Fact]
         public void FilePathParser_ShouldReturnNullOnInvalidFilename()
         {
-            var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj");
+            var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj", ImmutableArray<SqlProvider>.Empty);
             Assert.Null(result);
         }
     }

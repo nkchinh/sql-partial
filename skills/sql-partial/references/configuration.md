@@ -4,23 +4,23 @@
 
 | Property | Description | Default |
 | :--- | :--- | :--- |
-| `SqlPartialProviders` | Semicolon-separated `slug:Name` pairs. | (none) |
+| `SqlPartialProviders` | Semicolon-separated `extension:DisplayName` pairs. | (none) |
 | `SqlPartialStringsNamespace` | Namespace for the `SqlStrings` struct. | `$(RootNamespace)` |
 | `SqlPartialStringsType` | Use an existing `SqlStrings` type from another assembly. | (none) |
-| `SqlPartialStringsNamespace` | Custom namespace for the generated struct. | `$(RootNamespace)` |
 
 ## Complex Provider Setup
 
-You can define as many providers as you want:
+You can define as many providers as you want, and multiple extensions can map to the same DBMS:
 
 ```xml
 <PropertyGroup>
   <SqlPartialProviders>
-    pg:PostgreSql;
-    ms:SqlServer;
-    my:MySql;
-    ora:Oracle;
-    lt:Sqlite
+    .pg.sql:PostgreSql;
+    .pgsql:PostgreSql;
+    .ms.sql:SqlServer;
+    .my.sql:MySql;
+    .ora.sql:Oracle;
+    .lt.sql:Sqlite
   </SqlPartialProviders>
 </PropertyGroup>
 ```
