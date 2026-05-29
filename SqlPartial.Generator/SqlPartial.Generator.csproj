@@ -12,7 +12,7 @@
 
     <PackageId>NkChinh.SqlPartial.Generator</PackageId>
     <Title>SqlPartial.Generator</Title>
-    <Version>1.0.1-preview.2</Version>
+    <Version>1.0.1-preview.4</Version>
     <Authors>nkchinh</Authors>
     <Description>Modern Roslyn source generator that turns .sql files into strongly-typed C# constants with DBMS-specific overrides. Provides full IntelliSense and automatic generation on save.</Description>
     <PackageTags>sql;partial;source-generator;roslyn;nkchinh;sql-partial;database;csharp</PackageTags>

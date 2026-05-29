@@ -76,11 +76,12 @@ namespace SqlPartial.Tests
             Assert.Contains("namespace MyProject.Sql", source);
             Assert.Contains("public readonly struct SqlStrings", source);
             Assert.Contains("public string AnsiSql { get; }", source);
-            Assert.Contains("public string? PostgreSql { get; }", source);
+            Assert.Contains("private readonly string? _postgresql;", source);
+            Assert.Contains("public string PostgreSql => _postgresql ?? AnsiSql;", source);
             Assert.Contains("public SqlStrings(string ansiSql, string? postgresql = null)", source);
-            Assert.Contains("public static implicit operator string(SqlStrings s) => s.AnsiSql;", source);
+            Assert.Contains("_postgresql = postgresql;", source);
             Assert.Contains("case \"PostgreSql\":", source);
-            Assert.Contains("return PostgreSql ?? AnsiSql;", source);
+            Assert.Contains("return PostgreSql;", source);
         }
 
         [Fact]
@@ -96,7 +97,7 @@ namespace SqlPartial.Tests
             var source = SourceBuilder.BuildSqlStringsStruct(config, false);
 
             Assert.DoesNotContain("#nullable", source);
-            Assert.Contains("public string PostgreSql { get; }", source);
+            Assert.Contains("public string PostgreSql => _postgresql ?? AnsiSql;", source);
             Assert.Contains("public SqlStrings(string ansiSql, string postgresql = null)", source);
         }
 

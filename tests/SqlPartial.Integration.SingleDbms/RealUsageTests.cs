@@ -9,15 +9,16 @@ namespace SqlPartial.Integration.SingleDbms
         {
             // GetSettings only has ANSI version
             var sql = SqlGetSettings;
+            var expected = "SELECT Value FROM Settings WHERE Key = @Key;";
 
-            Assert.Equal("SELECT Value FROM Settings WHERE Key = @Key;", sql.AnsiSql);
+            Assert.Equal(expected, sql.AnsiSql);
 
             // Implicit conversion
             string query = sql;
-            Assert.Equal("SELECT Value FROM Settings WHERE Key = @Key;", query);
+            Assert.Equal(expected, query);
 
             // Get unknown provider returns ANSI
-            Assert.Equal("SELECT Value FROM Settings WHERE Key = @Key;", sql.Get("PostgreSql"));
+            Assert.Equal(expected, sql.Get("PostgreSql"));
         }
     }
 }

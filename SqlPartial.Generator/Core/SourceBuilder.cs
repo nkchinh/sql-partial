@@ -40,9 +40,13 @@ namespace SqlPartial.Generator.Core
             // One property per configured provider
             foreach (var providerName in config.DistinctProviderNames)
             {
+                var fieldName = "_" + providerName.ToLowerInvariant();
+                var fieldType = supportsNullable ? "string?" : "string";
+                
+                sb.AppendLine($"        private readonly {fieldType} {fieldName};");
                 sb.AppendLine($"        /// <summary>{providerName} specific SQL. Falls back to <see cref=\"AnsiSql\"/> when null.</summary>");
-                var type = supportsNullable ? "string?" : "string";
-                sb.AppendLine($"        public {type} {providerName} {{ get; }}");
+                // Property is always non-nullable string because it falls back to AnsiSql
+                sb.AppendLine($"        public string {providerName} => {fieldName} ?? AnsiSql;");
                 sb.AppendLine();
             }
 
@@ -58,7 +62,7 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("            AnsiSql = ansiSql;");
             foreach (var providerName in config.DistinctProviderNames)
             {
-                sb.AppendLine($"            {providerName} = {providerName.ToLowerInvariant()};");
+                sb.AppendLine($"            _{providerName.ToLowerInvariant()} = {providerName.ToLowerInvariant()};");
             }
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -80,7 +84,7 @@ namespace SqlPartial.Generator.Core
             foreach (var providerName in config.DistinctProviderNames)
             {
                 sb.AppendLine($"                case \"{providerName}\":");
-                sb.AppendLine($"                    return {providerName} ?? AnsiSql;");
+                sb.AppendLine($"                    return {providerName};");
             }
             sb.AppendLine("                default:");
             sb.AppendLine("                    return AnsiSql;");
