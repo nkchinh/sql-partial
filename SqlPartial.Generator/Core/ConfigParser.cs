@@ -41,14 +41,17 @@ namespace SqlPartial.Generator.Core
         /// <summary>
         /// Parses "pg.sql:PostgreSql;pgsql:PostgreSql;ms.sql:SqlServer" into SqlProvider list.
         /// </summary>
-        private static ImmutableArray<SqlProvider> ParseProviders(string? raw)
+        internal static ImmutableArray<SqlProvider> ParseProviders(string? raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
                 return ImmutableArray<SqlProvider>.Empty;
 
             var builder = ImmutableArray.CreateBuilder<SqlProvider>();
 
-            foreach (var entry in raw!.Split(';'))
+            // Support both semicolon and comma as separators
+            var entries = raw!.Split(new[] { ';', ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var entry in entries)
             {
                 var parts = entry.Trim().Split(':');
                 if (parts.Length != 2) continue;

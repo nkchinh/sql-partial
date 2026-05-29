@@ -1,0 +1,1 @@
+SELECT 'Postgres Only' FROM System;

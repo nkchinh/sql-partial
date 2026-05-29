@@ -1,0 +1,1 @@
+SELECT 'MS Only' FROM System;

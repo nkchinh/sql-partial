@@ -14,8 +14,8 @@ namespace SqlPartial.Generator.Core
         /// Parses a SQL file path into (namespace, className, queryName, providerName).
         ///
         /// Matching Logic:
-        ///   1. Check if it ends with any configured extension (e.g. .pgsql, .pg.sql).
-        ///   2. Check if it ends with .an.sql or .sql (ANSI fallback).
+        ///   1. Combine configured extensions with hardcoded ANSI defaults (.an.sql, .sql).
+        ///   2. Sort by length descending to ensure the longest extension matches first.
         ///   3. Strip the matched extension and split remaining filename into ClassName.QueryName.
         /// </summary>
         public static (string ns, string className, string queryName, string providerName)?
@@ -24,13 +24,24 @@ namespace SqlPartial.Generator.Core
             var fullPath = filePath;
             var filename = Path.GetFileName(filePath);
 
-            string? matchedExtension = null;
-            string providerName = AnsiSqlProviderName;
+            // 1. Combine user providers with hardcoded ANSI defaults
+            // ANSI defaults are added FIRST to ensure they win in case of duplicate extensions
+            var allPossibleProviders = new System.Collections.Generic.List<SqlProvider>
+            {
+                new SqlProvider(".an.sql", AnsiSqlProviderName),
+                new SqlProvider(".sql", AnsiSqlProviderName)
+            };
+            allPossibleProviders.AddRange(providers);
 
-            // 1. Try custom extensions (longest first to avoid partial matches)
-            var sortedProviders = providers
+            // 2. Deduplicate by extension and sort by length descending (Longest match wins)
+            var sortedProviders = allPossibleProviders
+                .GroupBy(p => p.Extension, System.StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
                 .OrderByDescending(p => p.Extension.Length)
                 .ThenBy(p => p.Extension);
+
+            string? matchedExtension = null;
+            string providerName = AnsiSqlProviderName;
 
             foreach (var provider in sortedProviders)
             {
@@ -39,20 +50,6 @@ namespace SqlPartial.Generator.Core
                     matchedExtension = provider.Extension;
                     providerName = provider.Name;
                     break;
-                }
-            }
-
-            // 2. Try default ANSI extensions if no custom match
-            if (matchedExtension == null)
-            {
-                foreach (var ext in DefaultAnsiExtensions)
-                {
-                    if (filename.EndsWith(ext, System.StringComparison.OrdinalIgnoreCase))
-                    {
-                        matchedExtension = ext;
-                        providerName = AnsiSqlProviderName;
-                        break;
-                    }
                 }
             }
 

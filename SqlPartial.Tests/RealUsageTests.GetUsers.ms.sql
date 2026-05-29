@@ -1,0 +1,1 @@
+SELECT TOP (@Count) * FROM Users;

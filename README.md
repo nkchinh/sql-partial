@@ -74,8 +74,8 @@ Add to your `.csproj`. ANSI SQL is always available — only declare additional 
 
 ```xml
 <PropertyGroup>
-    <!-- extension:DisplayName pairs, semicolon-separated -->
-    <SqlPartialProviders>.pg.sql:PostgreSql;.pgsql:PostgreSql;.ms.sql:SqlServer;.lt.sql:Sqlite</SqlPartialProviders>
+    <!-- extension:DisplayName pairs, semicolon or comma separated -->
+    <SqlPartialProviders>.pg.sql:PostgreSql,.pgsql:PostgreSql,.ms.sql:SqlServer</SqlPartialProviders>
 </PropertyGroup>
 ```
 

@@ -187,6 +187,71 @@ namespace SqlPartial.Tests
         }
 
         [Fact]
+        public void ConfigParser_ParseProviders_ShouldHandleMultipleSeparatorsAndDots()
+        {
+            // Semicolon and comma mixed, some with dots, some without
+            var raw = ".pg.sql:PostgreSql,pgsql:PostgreSql;.ms.sql:SqlServer";
+            var providers = ConfigParser.ParseProviders(raw);
+
+            Assert.Equal(3, providers.Length);
+            Assert.Equal(".pg.sql", providers[0].Extension);
+            Assert.Equal(".pgsql", providers[1].Extension);
+            Assert.Equal(".ms.sql", providers[2].Extension);
+            Assert.All(providers, p => Assert.NotNull(p.Name));
+        }
+
+        [Fact]
+        public void SqlQueryGroup_GetContent_ShouldReturnEmptyIfAnsiMissing()
+        {
+            var contentByProvider = new Dictionary<string, string>
+            {
+                { "PostgreSql", "SELECT PG;" }
+            }.ToImmutableDictionary();
+
+            var group = new SqlQueryGroup("NS", "Class", "Query", contentByProvider);
+
+            // Existing provider
+            Assert.Equal("SELECT PG;", group.GetContent("PostgreSql"));
+
+            // Missing provider AND missing ANSI -> empty string
+            Assert.Equal(string.Empty, group.GetContent("AnsiSql"));
+            Assert.Equal(string.Empty, group.GetContent("Unknown"));
+        }
+
+        [Fact]
+        public void GeneratorConfig_DistinctProviderNames_ShouldDeduplicate()
+        {
+            var providers = ImmutableArray.Create(
+                new SqlProvider(".pg.sql", "PostgreSql"),
+                new SqlProvider(".pgsql", "PostgreSql"),
+                new SqlProvider(".ms.sql", "SqlServer")
+            );
+
+            var config = new GeneratorConfig("NS", providers, "NS", null, true);
+
+            var distinct = config.DistinctProviderNames.ToList();
+            Assert.Equal(2, distinct.Count);
+            Assert.Contains("PostgreSql", distinct);
+            Assert.Contains("SqlServer", distinct);
+        }
+
+        [Theory]
+        [InlineData(@"C:\Proj\User.Get.pg.sql", "PostgreSql")] // Longest match
+        [InlineData(@"C:\Proj\User.Get.sql", FilePathParser.AnsiSqlProviderName)] // Fallback
+        public void FilePathParser_ShouldHandleAmbiguousExtensions(string path, string expectedProvider)
+        {
+            var providers = ImmutableArray.Create(
+                new SqlProvider(".pg.sql", "PostgreSql"),
+                new SqlProvider(".sql", "MySql") // Ambiguous with ANSI default
+            );
+
+            var result = FilePathParser.TryParse(path, "NS", @"C:\Proj", providers);
+
+            Assert.NotNull(result);
+            Assert.Equal(expectedProvider, result.Value.providerName);
+        }
+
+        [Fact]
         public void FilePathParser_ShouldReturnNullOnInvalidFilename()
         {
             var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj", ImmutableArray<SqlProvider>.Empty);

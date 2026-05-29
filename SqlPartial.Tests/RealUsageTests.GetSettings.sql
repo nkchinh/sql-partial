@@ -1,0 +1,1 @@
+SELECT Value FROM Settings WHERE Key = @Key;
