@@ -1,0 +1,1 @@
+SELECT 'from .pg.sql' FROM Users;

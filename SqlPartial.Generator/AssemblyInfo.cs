@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("SqlPartial.Tests")]
+[assembly: InternalsVisibleTo("SqlPartial.Generator.Tests")]

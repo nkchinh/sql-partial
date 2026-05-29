@@ -1,4 +1,8 @@
 <Solution>
   <Project Path="SqlPartial.Generator/SqlPartial.Generator.csproj" />
-  <Project Path="SqlPartial.Tests/SqlPartial.Tests.csproj" />
+  <Project Path="tests/SqlPartial.Generator.Tests/SqlPartial.Generator.Tests.csproj" />
+  <Project Path="tests/SqlPartial.Integration.MultiDbms/SqlPartial.Integration.MultiDbms.csproj" />
+  <Project Path="tests/SqlPartial.Integration.SingleDbms/SqlPartial.Integration.SingleDbms.csproj" />
+  <Project Path="tests/SqlPartial.Integration.NoFallback/SqlPartial.Integration.NoFallback.csproj" />
+  <Project Path="tests/SqlPartial.Integration.DuplicateExtensions/SqlPartial.Integration.DuplicateExtensions.csproj" />
 </Solution>

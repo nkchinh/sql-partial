@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,30 +9,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <SqlPartialProviders>.pg.sql:PostgreSql;.pgsql:PostgreSql;.ms.sql:SqlServer</SqlPartialProviders>
-  </PropertyGroup>
-
   <ItemGroup>
-    <AdditionalFiles Include="**/*.*.sql">
+    <AdditionalFiles Include="**/*.sql">
       <SourceItemType>SqlPartial</SourceItemType>
     </AdditionalFiles>
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
+    <ProjectReference Include="..\..\SqlPartial.Generator\SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\SqlPartial.Generator\SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
-  </ItemGroup>
-
-  <Import Project="..\SqlPartial.Generator\NkChinh.SqlPartial.Generator.targets" />
+  <Import Project="..\..\SqlPartial.Generator\NkChinh.SqlPartial.Generator.targets" />
 
 </Project>
