@@ -27,12 +27,13 @@ If you've created a `.sql` file but the corresponding `Sql{QueryName}` property 
 
 ## 4. Generator Diagnostics
 
-The generator emits these codes during build:
+The generator emits these codes during build. If you encounter an Error, the build will fail. Warnings indicate potential runtime issues.
 
-| Code | Severity | Meaning |
-| :--- | :--- | :--- |
-| `SQLPG001` | Error | Failed to generate `SqlStrings` struct. Check your `SqlPartialProviders` syntax. |
-| `SQLPG002` | Error | Failed to generate a partial class. Check if the class name contains illegal characters. |
-| `SQLPG003` | Warning | Missing Fallback SQL. Your query doesn't cover all DBMS providers and has no fallback. |
-| `SQLPG004` | Warning | Empty SQL content. The file was empty after stripping comments and test blocks. |
-| `SQLPG005` | Warning | Unrecognized extension. The file's extension isn't in `SqlPartialProviders`. (Enable via `SqlPartialWarnOnUnrecognized`) |
+| Code | Severity | Category | Meaning |
+| :--- | :---: | :---: | :--- |
+| **SQLPG001** | `Error` | Config | Invalid `SqlPartialProviders` syntax. Ensure format is `ext:Name`. |
+| **SQLPG002** | `Error` | Tooling | Internal failure generating `SqlStrings` struct. |
+| **SQLPG003** | `Error` | Tooling | Internal failure generating partial class file. |
+| **SQLPG010** | `Warning` | Logic | Missing Fallback SQL & incomplete DBMS coverage. |
+| **SQLPG011** | `Warning` | Quality | SQL file is empty after cleaning comments/excludes. |
+| **SQLPG020** | `Warning` | Usage | Unrecognized SQL extension found (Disabled by default). |

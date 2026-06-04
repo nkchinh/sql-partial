@@ -232,13 +232,14 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 
 ## Diagnostics
 
-| Code | Severity | Meaning |
-|------|----------|---------|
-| `SQLPG001` | Error | Failed to generate `SqlStrings` struct |
-| `SQLPG002` | Error | Failed to generate a partial class file |
-| `SQLPG003` | Warning | Missing Fallback SQL & incomplete DBMS coverage |
-| `SQLPG004` | Warning | SQL file is empty after cleaning comments/excludes |
-| `SQLPG005` | Warning | Unrecognized extension (Disabled by default) |
+| Code | Severity | Category | Meaning |
+|:---|:---:|:---:|:---|
+| `SQLPG001` | **Error** | Config | Invalid `SqlPartialProviders` syntax. Format must be `ext:Name`. |
+| `SQLPG002` | **Error** | Tooling | Internal failure generating `SqlStrings` struct. |
+| `SQLPG003` | **Error** | Tooling | Internal failure generating partial class file. |
+| `SQLPG010` | Warning | Logic | Missing Fallback SQL & incomplete DBMS coverage. |
+| `SQLPG011` | Warning | Quality | SQL file is empty after cleaning comments/excludes. |
+| `SQLPG020` | Warning | Usage | Unrecognized extension (Disabled by default). |
 
 ---
 

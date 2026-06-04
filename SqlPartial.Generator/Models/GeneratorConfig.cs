@@ -10,6 +10,7 @@ namespace SqlPartial.Generator.Models
     internal sealed class GeneratorConfig(
         string rootNamespace,
         ImmutableArray<SqlProvider> providers,
+        ImmutableArray<string> invalidProviderEntries,
         string sqlStringsNamespace,
         string? externalSqlStringsType,
         bool nullableEnabled,
@@ -22,6 +23,11 @@ namespace SqlPartial.Generator.Models
         /// Parsed from SqlPartialProviders = "pg.sql:PostgreSql;pgsql:PostgreSql"
         /// </summary>
         public ImmutableArray<SqlProvider> Providers { get; } = providers;
+
+        /// <summary>
+        /// Any entries in SqlPartialProviders that failed to parse correctly.
+        /// </summary>
+        public ImmutableArray<string> InvalidProviderEntries { get; } = invalidProviderEntries;
 
         /// <summary>
         /// Returns the unique DBMS provider names (e.g., if both .pg.sql and .pgsql map to PostgreSql).
@@ -52,11 +58,12 @@ namespace SqlPartial.Generator.Models
             ExternalSqlStringsType == other.ExternalSqlStringsType &&
             NullableEnabled == other.NullableEnabled &&
             WarnOnUnrecognized == other.WarnOnUnrecognized &&
-            Providers.SequenceEqual(other.Providers);
+            Providers.SequenceEqual(other.Providers) &&
+            InvalidProviderEntries.SequenceEqual(other.InvalidProviderEntries);
 
         public override bool Equals(object? obj) => Equals(obj as GeneratorConfig);
 
         public override int GetHashCode() => HashCodeHelper.Combine(
-            RootNamespace, SqlStringsNamespace, ExternalSqlStringsType, NullableEnabled, Providers.Length, WarnOnUnrecognized);
+            RootNamespace, SqlStringsNamespace, ExternalSqlStringsType, NullableEnabled, Providers.Length, WarnOnUnrecognized, InvalidProviderEntries.Length);
     }
 }

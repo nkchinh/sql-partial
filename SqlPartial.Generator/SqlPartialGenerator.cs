@@ -40,6 +40,17 @@ namespace SqlPartial.Generator
                     return dir ?? string.Empty;
                 });
 
+            // ── Report SQLPG001 (Invalid Config) ────────────────────────────
+            context.RegisterSourceOutput(config, static (ctx, cfg) =>
+            {
+                foreach (var invalidEntry in cfg.InvalidProviderEntries)
+                {
+                    ReportDiagnostic(ctx, "SQLPG001", "Invalid Provider Configuration", 
+                        $"The provider configuration '{invalidEntry}' is invalid. It must follow the format 'extension:DisplayName' (e.g., '.pg.sql:PostgreSql').", 
+                        DiagnosticSeverity.Error);
+                }
+            });
+
             // ── AdditionalFiles: marked as SqlPartial ────────────────────────
             var sqlFiles = context.AdditionalTextsProvider
                 .Combine(context.AnalyzerConfigOptionsProvider)
@@ -75,7 +86,7 @@ namespace SqlPartial.Generator
                     return new SqlFileResult(filePath, file, isUnrecognized: false);
                 });
 
-            // ── Report SQLPG004 (Empty) & SQLPG005 (Unrecognized) ────────────
+            // ── Report SQLPG011 (Empty) & SQLPG020 (Unrecognized) ────────────
             context.RegisterSourceOutput(parsedFiles.Combine(config), static (ctx, tuple) =>
             {
                 var (result, cfg) = tuple;
@@ -83,7 +94,7 @@ namespace SqlPartial.Generator
                 {
                     if (cfg.WarnOnUnrecognized)
                     {
-                        ReportDiagnostic(ctx, "SQLPG005", "Unrecognized SQL file extension", 
+                        ReportDiagnostic(ctx, "SQLPG020", "Unrecognized SQL file extension", 
                             $"File '{System.IO.Path.GetFileName(result.FilePath)}' does not match any configured provider or fallback extension.", 
                             DiagnosticSeverity.Warning, result.FilePath);
                     }
@@ -92,7 +103,7 @@ namespace SqlPartial.Generator
 
                 if (result.File != null && string.IsNullOrWhiteSpace(result.File.Content))
                 {
-                    ReportDiagnostic(ctx, "SQLPG004", "Empty SQL content", 
+                    ReportDiagnostic(ctx, "SQLPG011", "Empty SQL content", 
                         $"File '{System.IO.Path.GetFileName(result.File.FilePath)}' is empty after cleaning.", 
                         DiagnosticSeverity.Warning, result.File.FilePath);
                 }
@@ -157,7 +168,7 @@ namespace SqlPartial.Generator
                 }
                 catch (Exception ex)
                 {
-                    ReportDiagnostic(ctx, "SQLPG001", "Struct Generation Failed", ex.Message, DiagnosticSeverity.Error);
+                    ReportDiagnostic(ctx, "SQLPG002", "Struct Generation Failed", ex.Message, DiagnosticSeverity.Error);
                 }
             });
 
@@ -166,7 +177,7 @@ namespace SqlPartial.Generator
             {
                 try
                 {
-                    // Report SQLPG003 (Missing Fallback)
+                    // Report SQLPG010 (Missing Fallback)
                     foreach (var group in batch.Groups)
                     {
                         var hasFallback = group.ContentByProviderName.ContainsKey(FilePathParser.FallbackProviderName);
@@ -175,7 +186,7 @@ namespace SqlPartial.Generator
 
                         if (!hasFallback && providersCount < totalConfigured)
                         {
-                            ReportDiagnostic(ctx, "SQLPG003", "Missing Fallback SQL", 
+                            ReportDiagnostic(ctx, "SQLPG010", "Missing Fallback SQL", 
                                 $"Query '{group.QueryName}' in class '{group.ClassName}' is missing a fallback and does not cover all configured providers. Runtime may return empty strings.", 
                                 DiagnosticSeverity.Warning);
                         }
@@ -194,7 +205,7 @@ namespace SqlPartial.Generator
                 }
                 catch (Exception ex)
                 {
-                    ReportDiagnostic(ctx, "SQLPG002", "Class Generation Failed", ex.Message, DiagnosticSeverity.Error);
+                    ReportDiagnostic(ctx, "SQLPG003", "Class Generation Failed", ex.Message, DiagnosticSeverity.Error);
                 }
             });
         }

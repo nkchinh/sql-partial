@@ -28,7 +28,7 @@ namespace SqlPartial.Generator.Core
 
             rootNamespace = string.IsNullOrWhiteSpace(rootNamespace) ? "Generated" : rootNamespace!.Trim();
 
-            var providers = ParseProviders(providersRaw);
+            var (providers, invalidEntries) = ParseProviders(providersRaw);
 
             var sqlStringsNamespace = string.IsNullOrWhiteSpace(stringsNs)
                 ? rootNamespace
@@ -40,6 +40,7 @@ namespace SqlPartial.Generator.Core
             return new GeneratorConfig(
                 rootNamespace,
                 providers,
+                invalidEntries,
                 sqlStringsNamespace,
                 string.IsNullOrWhiteSpace(externalType) ? null : externalType!.Trim(),
                 nullableEnabled,
@@ -49,13 +50,15 @@ namespace SqlPartial.Generator.Core
 
         /// <summary>
         /// Parses "pg.sql:PostgreSql;pgsql:PostgreSql;ms.sql:SqlServer" into SqlProvider list.
+        /// Returns a tuple containing valid providers and any invalid raw entries.
         /// </summary>
-        internal static ImmutableArray<SqlProvider> ParseProviders(string? raw)
+        internal static (ImmutableArray<SqlProvider> providers, ImmutableArray<string> invalidEntries) ParseProviders(string? raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
-                return ImmutableArray<SqlProvider>.Empty;
+                return (ImmutableArray<SqlProvider>.Empty, ImmutableArray<string>.Empty);
 
-            var builder = ImmutableArray.CreateBuilder<SqlProvider>();
+            var validBuilder = ImmutableArray.CreateBuilder<SqlProvider>();
+            var invalidBuilder = ImmutableArray.CreateBuilder<string>();
 
             // Support both semicolon and comma as separators
             var entries = raw!.Split(new[] { ';', ',' }, System.StringSplitOptions.RemoveEmptyEntries);
@@ -63,12 +66,20 @@ namespace SqlPartial.Generator.Core
             foreach (var entry in entries)
             {
                 var parts = entry.Trim().Split(':');
-                if (parts.Length != 2) continue;
+                if (parts.Length != 2)
+                {
+                    invalidBuilder.Add(entry.Trim());
+                    continue;
+                }
 
                 var extension = parts[0].Trim();
                 var name = parts[1].Trim();
 
-                if (string.IsNullOrEmpty(extension) || string.IsNullOrEmpty(name)) continue;
+                if (string.IsNullOrEmpty(extension) || string.IsNullOrEmpty(name))
+                {
+                    invalidBuilder.Add(entry.Trim());
+                    continue;
+                }
 
                 // Ensure extension starts with a dot for consistent matching later
                 if (!extension.StartsWith("."))
@@ -76,10 +87,10 @@ namespace SqlPartial.Generator.Core
                     extension = "." + extension;
                 }
 
-                builder.Add(new SqlProvider(extension, name));
+                validBuilder.Add(new SqlProvider(extension, name));
             }
 
-            return builder.ToImmutable();
+            return (validBuilder.ToImmutable(), invalidBuilder.ToImmutable());
         }
     }
 }

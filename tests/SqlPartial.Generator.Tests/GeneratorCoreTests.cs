@@ -66,6 +66,7 @@ namespace SqlPartial.Tests
             var config = new GeneratorConfig(
                 "MyProject",
                 [new SqlProvider(".pg.sql", "PostgreSql")],
+                ImmutableArray<string>.Empty,
                 "MyProject.Sql",
                 null,
                 true);
@@ -86,6 +87,7 @@ namespace SqlPartial.Tests
             var config = new GeneratorConfig(
                 "MyProject",
                 [new SqlProvider(".pg.sql", "PostgreSql")],
+                ImmutableArray<string>.Empty,
                 "MyProject.Sql",
                 null,
                 true);
@@ -103,6 +105,7 @@ namespace SqlPartial.Tests
             var config = new GeneratorConfig(
                 "MyProject",
                 [new SqlProvider(".pg.sql", "PostgreSql")],
+                ImmutableArray<string>.Empty,
                 "MyProject.Sql",
                 null,
                 false);
@@ -140,6 +143,7 @@ namespace SqlPartial.Tests
             var config = new GeneratorConfig(
                 "MyProject",
                 [],
+                ImmutableArray<string>.Empty,
                 "MyProject.Sql",
                 "Shared.SqlStrings",
                 true);
@@ -186,15 +190,19 @@ namespace SqlPartial.Tests
         [Fact]
         public void ConfigParser_ParseProviders_ShouldHandleMultipleSeparatorsAndDots()
         {
-            // Semicolon and comma mixed, some with dots, some without
-            var raw = ".pg.sql:PostgreSql,pgsql:PostgreSql;.ms.sql:SqlServer";
-            var providers = ConfigParser.ParseProviders(raw);
+            // Semicolon and comma mixed, some with dots, some without, and some INVALID entries
+            var raw = ".pg.sql:PostgreSql,pgsql:PostgreSql;.ms.sql:SqlServer,INVALID_ENTRY,too:many:colons";
+            var (providers, invalid) = ConfigParser.ParseProviders(raw);
 
             Assert.Equal(3, providers.Length);
             Assert.Equal(".pg.sql", providers[0].Extension);
             Assert.Equal(".pgsql", providers[1].Extension);
             Assert.Equal(".ms.sql", providers[2].Extension);
             Assert.All(providers, p => Assert.NotNull(p.Name));
+
+            Assert.Equal(2, invalid.Length);
+            Assert.Contains("INVALID_ENTRY", invalid);
+            Assert.Contains("too:many:colons", invalid);
         }
 
         [Fact]
@@ -224,7 +232,7 @@ namespace SqlPartial.Tests
                 new SqlProvider(".ms.sql", "SqlServer")
             );
 
-            var config = new GeneratorConfig("NS", providers, "NS", null, true);
+            var config = new GeneratorConfig("NS", providers, ImmutableArray<string>.Empty, "NS", null, true);
 
             var distinct = config.DistinctProviderNames.ToList();
             Assert.Equal(2, distinct.Count);
