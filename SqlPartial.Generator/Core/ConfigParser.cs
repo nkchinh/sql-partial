@@ -65,10 +65,11 @@ namespace SqlPartial.Generator.Core
 
             foreach (var entry in entries)
             {
-                var parts = entry.Trim().Split(':');
+                var trimmed = entry.Trim();
+                var parts = trimmed.Split(':');
                 if (parts.Length != 2)
                 {
-                    invalidBuilder.Add(entry.Trim());
+                    invalidBuilder.Add(trimmed);
                     continue;
                 }
 
@@ -77,20 +78,41 @@ namespace SqlPartial.Generator.Core
 
                 if (string.IsNullOrEmpty(extension) || string.IsNullOrEmpty(name))
                 {
-                    invalidBuilder.Add(entry.Trim());
+                    invalidBuilder.Add(trimmed);
                     continue;
                 }
 
-                // Ensure extension starts with a dot for consistent matching later
+                // REQUIRE extension to start with a dot. 
+                // This prevents ambiguity and encourages correct usage.
                 if (!extension.StartsWith("."))
                 {
-                    extension = "." + extension;
+                    invalidBuilder.Add(trimmed);
+                    continue;
+                }
+
+                // Check if name is a valid C# identifier (simplified check)
+                if (!IsValidIdentifier(name))
+                {
+                    invalidBuilder.Add(trimmed);
+                    continue;
                 }
 
                 validBuilder.Add(new SqlProvider(extension, name));
             }
 
             return (validBuilder.ToImmutable(), invalidBuilder.ToImmutable());
+        }
+
+        private static bool IsValidIdentifier(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            if (!char.IsLetter(name[0]) && name[0] != '_') return false;
+            for (int i = 1; i < name.Length; i++)
+            {
+                if (!char.IsLetterOrDigit(name[i]) && name[i] != '_') return false;
+            }
+
+            return true;
         }
     }
 }

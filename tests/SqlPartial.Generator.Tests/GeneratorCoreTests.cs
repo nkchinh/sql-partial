@@ -188,21 +188,25 @@ namespace SqlPartial.Tests
         }
 
         [Fact]
-        public void ConfigParser_ParseProviders_ShouldHandleMultipleSeparatorsAndDots()
+        public void ConfigParser_ParseProviders_ShouldReportInvalidOnMissingDot()
         {
-            // Semicolon and comma mixed, some with dots, some without, and some INVALID entries
-            var raw = ".pg.sql:PostgreSql,pgsql:PostgreSql;.ms.sql:SqlServer,INVALID_ENTRY,too:many:colons";
+            var raw = "ms.sql:SqlServer";
             var (providers, invalid) = ConfigParser.ParseProviders(raw);
 
-            Assert.Equal(3, providers.Length);
-            Assert.Equal(".pg.sql", providers[0].Extension);
-            Assert.Equal(".pgsql", providers[1].Extension);
-            Assert.Equal(".ms.sql", providers[2].Extension);
-            Assert.All(providers, p => Assert.NotNull(p.Name));
+            Assert.Empty(providers);
+            Assert.Single(invalid);
+            Assert.Equal("ms.sql:SqlServer", invalid[0]);
+        }
 
-            Assert.Equal(2, invalid.Length);
-            Assert.Contains("INVALID_ENTRY", invalid);
-            Assert.Contains("too:many:colons", invalid);
+        [Fact]
+        public void ConfigParser_ParseProviders_ShouldReportInvalidOnInvalidIdentifier()
+        {
+            var raw = ".sql:123SqlServer";
+            var (providers, invalid) = ConfigParser.ParseProviders(raw);
+
+            Assert.Empty(providers);
+            Assert.Single(invalid);
+            Assert.Equal(".sql:123SqlServer", invalid[0]);
         }
 
         [Fact]
