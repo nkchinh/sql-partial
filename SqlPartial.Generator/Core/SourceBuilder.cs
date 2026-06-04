@@ -48,8 +48,9 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("    /// </summary>");
             sb.AppendLine("    public readonly struct SqlStrings : ISqlString");
             sb.AppendLine("    {");
+            sb.AppendLine($"        private readonly {stringType} _fallback;");
             sb.AppendLine("        /// <summary>Fallback SQL — shared default for all providers.</summary>");
-            sb.AppendLine("        public string Fallback { get; }");
+            sb.AppendLine("        public string Fallback => _fallback ?? string.Empty;");
             sb.AppendLine();
 
             foreach (var providerName in config.DistinctProviderNames)
@@ -74,7 +75,7 @@ namespace SqlPartial.Generator.Core
             if (!first) sb.Append(", ");
             sb.AppendLine($"{stringType} fallback = null)");
             sb.AppendLine("        {");
-            sb.AppendLine("            Fallback = fallback;");
+            sb.AppendLine("            _fallback = fallback;");
             foreach (var providerName in providerNames)
             {
                 sb.AppendLine($"            _{providerName.ToLowerInvariant()} = {providerName.ToLowerInvariant()};");
