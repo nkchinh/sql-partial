@@ -226,7 +226,7 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 | `SqlPartialProviders` | No | _(none)_ | Semicolon-separated `extension:DisplayName` pairs |
 | `SqlPartialStringsNamespace` | No | `$(RootNamespace)` | Namespace for the generated `SqlStrings` struct |
 | `SqlPartialStringsType` | No | _(none)_ | Fully-qualified type to use instead of generating `SqlStrings` |
-| `SqlPartialWarnOnUnrecognized` | No | `false` | If `true`, emits `SQLPG005` for unknown extensions |
+| `SqlPartialWarnOnUnrecognized` | No | `false` | If `true`, emits `SQLPG020` for unknown extensions |
 
 ---
 
@@ -239,6 +239,7 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 | `SQLPG003` | **Error** | Tooling | Internal failure generating partial class file. |
 | `SQLPG010` | Warning | Logic | Missing Fallback SQL & incomplete DBMS coverage. |
 | `SQLPG011` | Warning | Quality | SQL file is empty after cleaning comments/excludes. |
+| `SQLPG012` | Warning | Logic | Missing Fallback SQL in manual instantiation (`new SqlStrings`). |
 | `SQLPG020` | Warning | Usage | Unrecognized extension (Disabled by default). |
 
 ---

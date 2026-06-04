@@ -36,4 +36,5 @@ The generator emits these codes during build. If you encounter an Error, the bui
 | **SQLPG003** | `Error` | Tooling | Internal failure generating partial class file. |
 | **SQLPG010** | `Warning` | Logic | Missing Fallback SQL & incomplete DBMS coverage. |
 | **SQLPG011** | `Warning` | Quality | SQL file is empty after cleaning comments/excludes. |
+| **SQLPG012** | `Warning` | Logic | Missing Fallback SQL in manual instantiation (`new SqlStrings`). |
 | **SQLPG020** | `Warning` | Usage | Unrecognized SQL extension found (Disabled by default). |

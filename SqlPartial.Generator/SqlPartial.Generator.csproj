@@ -21,6 +21,7 @@
     <PackageProjectUrl>https://github.com/nkchinh/sql-partial</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nkchinh/sql-partial</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

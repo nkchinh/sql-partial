@@ -16,7 +16,7 @@ namespace SqlPartial.Integration.DuplicateExtensions
             var other = SqlGetOther;
             Assert.Equal("SELECT 'from .pgsql' FROM Orders;", other.PostgreSql);
             Assert.Equal(string.Empty, other.SqlServer);
-            
+
             // Runtime check - all should be accessible via Display Names
             Assert.Equal("SELECT 'from .pg.sql' FROM Users;", info.Get("PostgreSql"));
             Assert.Equal("SELECT 'from .ms.sql' FROM System;", info.Get("SqlServer"));

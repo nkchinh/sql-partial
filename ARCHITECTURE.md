@@ -153,6 +153,21 @@ Generated properties are `private static readonly` and prefixed with `Sql` (e.g.
 
 ---
 
+## Analyzers
+
+### `ManualInstantiationAnalyzer` (`SQLPG012`)
+
+Detects when developers manually create `SqlStrings` or `SqlDynamic` with missing DBMS coverage and no fallback.
+
+- **Mechanism**: Intercepts `IObjectCreationOperation`.
+- **Logic**: Flags any instantiation where the `fallback` parameter is null/default AND at least one other provider parameter is null/default.
+- **De-coupling**: This analyzer does not need to parse MSBuild configuration because it uses the semantic information of the generated constructor.
+
+### Technical Note: RS2008
+Release tracking for analyzers is currently disabled to simplify development. See `SqlPartial.Generator/Analyzers/ReleaseTracking/README.md` for more details and future implementation steps.
+
+---
+
 ## File Path Parsing Logic — `FilePathParser`
 
 The parser uses a **longest-match-first** strategy against configured extensions to resolve the provider.
