@@ -50,10 +50,10 @@ public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString 
 | :--- | :--- | :--- |
 | **Auto** | Large, complex queries | Create `.sql` files; use generated `SqlStrings` |
 | **Manual Static** | Simple one-liners | Use inline string or `new SqlStrings("sql")` |
-| **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(ansi: () => ...)` |
+| **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(fallback: () => ...)` |
 
 ### 4. The Migration & Transition Rule (CRITICAL)
-If you are moving from a single DBMS (e.g., just ANSI or just MS SQL) to supporting multiple:
+If you are moving from a single DBMS (e.g., just fallback or just MS SQL) to supporting multiple:
 1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[extension]` (e.g., `.ms.sql`).
 2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `--#testpart` / `--/testpart` to `--#exclude` / `--/exclude`. 
     - *Why*: `#testpart` is deprecated. `#exclude` is the modern standard for SqlPartial.Generator.
@@ -96,7 +96,7 @@ SELECT * FROM Users WHERE Id = $1
 To keep your workflow efficient, consult these detailed guides when needed:
 
 - **[Configuration Guide](references/configuration.md)**: Deep dive into `.csproj` properties and advanced MSBuild setup.
-- **[Pattern Library](references/patterns.md)**: Examples of ANSI vs. Provider-specific SQL, and handling exclusion blocks.
+- **[Pattern Library](references/patterns.md)**: Examples of Fallback vs. Provider-specific SQL, and handling exclusion blocks.
 - **[Troubleshooting](references/troubleshooting.md)**: Common errors like `SQLGEN001`, namespace mismatches, and trigger failures.
 
 ---
@@ -105,8 +105,8 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
 | Pattern | Role | Example |
 | :--- | :--- | :--- |
-| `Class.Query.sql` | **ANSI Fallback** (Default) | `UserRepo.GetById.sql` |
-| `Class.Query.an.sql` | **ANSI Fallback** (Explicit variant) | `UserRepo.GetById.an.sql` |
+| `Class.Query.sql` | **Shared Fallback** (Default) | `UserRepo.GetById.sql` |
+| `Class.Query.an.sql` | **Shared Fallback** (Explicit variant) | `UserRepo.GetById.an.sql` |
 | `Class.Query.pg.sql` | **PostgreSQL** specific override | `UserRepo.GetById.pg.sql` |
 | `Class.Query.pgsql` | **PostgreSQL** (Custom extension) | `UserRepo.GetById.pgsql` |
 | `Class.Query.ms.sql` | **SQL Server** specific override | `UserRepo.GetById.ms.sql` |

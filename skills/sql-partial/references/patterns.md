@@ -39,7 +39,7 @@ DECLARE @MinScore INT = 100;
 SELECT * FROM Users WHERE IsActive = true AND Score >= :MinScore
 ```
 
-**Step 4: Create ANSI Fallback (Optional but recommended)**
+**Step 4: Create Fallback (Optional but recommended)**
 Create `UserRepo.GetActive.sql` with generic SQL.
 
 ---
@@ -90,13 +90,14 @@ await QueryAsync(UserRepo.SqlGetUsers);
 ### Manual Static (Inline)
 Best for one-liners.
 ```csharp
-// Pure ANSI string (implicitly converts to SqlStrings)
+// Pure fallback string (implicitly converts to SqlStrings)
 await QueryAsync("SELECT count(*) FROM users");
 
 // Manual Multi-DBMS in code
 await QueryAsync(new SqlStrings(
-    ansiSql: "SELECT name FROM users LIMIT 10",
-    sqlserver: "SELECT TOP 10 name FROM users"
+    postgresql: "SELECT name FROM users LIMIT 10",
+    sqlserver:  "SELECT TOP 10 name FROM users",
+    fallback:   "SELECT name FROM users"
 ));
 ```
 
@@ -105,7 +106,7 @@ Best for SQL that needs runtime logic.
 ```csharp
 var partitioned = new SqlDynamic(
     postgresql: () => $"SELECT * FROM logs_{DateTime.Now:yyyyMM}",
-    ansi: () => "SELECT * FROM logs"
+    fallback: () => "SELECT * FROM logs"
 );
 await QueryAsync(partitioned);
 ```

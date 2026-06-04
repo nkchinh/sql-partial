@@ -34,10 +34,10 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("    /// <summary>Common interface for both static and dynamic SQL strings.</summary>");
             sb.AppendLine("    public interface ISqlString");
             sb.AppendLine("    {");
-            sb.AppendLine("        /// <summary>ANSI SQL — shared fallback.</summary>");
-            sb.AppendLine("        string AnsiSql { get; }");
+            sb.AppendLine("        /// <summary>Fallback SQL — shared default.</summary>");
+            sb.AppendLine("        string Fallback { get; }");
             sb.AppendLine();
-            sb.AppendLine("        /// <summary>Returns the SQL for a given provider, falling back to AnsiSql.</summary>");
+            sb.AppendLine("        /// <summary>Returns the SQL for a given provider, falling back to Fallback.</summary>");
             sb.AppendLine("        string Get(string providerName);");
             sb.AppendLine("    }");
             sb.AppendLine();
@@ -48,29 +48,29 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("    /// </summary>");
             sb.AppendLine("    public readonly struct SqlStrings : ISqlString");
             sb.AppendLine("    {");
-            sb.AppendLine("        /// <summary>ANSI SQL — shared fallback for all providers.</summary>");
-            sb.AppendLine("        public string AnsiSql { get; }");
+            sb.AppendLine("        /// <summary>Fallback SQL — shared default for all providers.</summary>");
+            sb.AppendLine("        public string Fallback { get; }");
             sb.AppendLine();
 
             foreach (var providerName in config.DistinctProviderNames)
             {
                 var fieldName = "_" + providerName.ToLowerInvariant();
                 sb.AppendLine($"        private readonly {stringType} {fieldName};");
-                sb.AppendLine($"        /// <summary>{providerName} specific SQL. Falls back to <see cref=\"AnsiSql\"/> when null.</summary>");
-                sb.AppendLine($"        public string {providerName} => {fieldName} ?? AnsiSql;");
+                sb.AppendLine($"        /// <summary>{providerName} specific SQL. Falls back to <see cref=\"Fallback\"/> when null.</summary>");
+                sb.AppendLine($"        public string {providerName} => {fieldName} ?? Fallback;");
                 sb.AppendLine();
             }
 
             // Full Constructor
             var providerNames = config.DistinctProviderNames.ToArray();
-            sb.Append("        public SqlStrings(string ansiSql");
+            sb.Append("        public SqlStrings(string fallback");
             foreach (var providerName in providerNames)
             {
                 sb.Append($", {stringType} {providerName.ToLowerInvariant()} = null");
             }
             sb.AppendLine(")");
             sb.AppendLine("        {");
-            sb.AppendLine("            AnsiSql = ansiSql;");
+            sb.AppendLine("            Fallback = fallback;");
             foreach (var providerName in providerNames)
             {
                 sb.AppendLine($"            _{providerName.ToLowerInvariant()} = {providerName.ToLowerInvariant()};");
@@ -78,20 +78,20 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            // Manual Constructor (ANSI only) - Only if there are providers (to avoid CS0111)
+            // Manual Constructor (Fallback only) - Only if there are providers (to avoid CS0111)
             if (providerNames.Length > 0)
             {
-                sb.Append("        public SqlStrings(string ansiSql) : this(ansiSql");
+                sb.Append("        public SqlStrings(string fallback) : this(fallback");
                 foreach (var _ in providerNames) sb.Append(", null");
                 sb.AppendLine(") { }");
                 sb.AppendLine();
             }
 
             // Implicit operators
-            sb.AppendLine("        /// <summary>Implicit conversion from string creates an ANSI-only SqlStrings.</summary>");
-            sb.AppendLine("        public static implicit operator SqlStrings(string ansiSql) => new SqlStrings(ansiSql);");
-            sb.AppendLine("        /// <summary>Implicit conversion to string returns <see cref=\"AnsiSql\"/>.</summary>");
-            sb.AppendLine("        public static implicit operator string(SqlStrings s) => s.AnsiSql;");
+            sb.AppendLine("        /// <summary>Implicit conversion from string creates a Fallback-only SqlStrings.</summary>");
+            sb.AppendLine("        public static implicit operator SqlStrings(string fallback) => new SqlStrings(fallback);");
+            sb.AppendLine("        /// <summary>Implicit conversion to string returns <see cref=\"Fallback\"/>.</summary>");
+            sb.AppendLine("        public static implicit operator string(SqlStrings s) => s.Fallback;");
             sb.AppendLine();
 
             // Get method
@@ -103,7 +103,7 @@ namespace SqlPartial.Generator.Core
             {
                 sb.AppendLine($"                case \"{providerName}\": return {providerName};");
             }
-            sb.AppendLine("                default: return AnsiSql;");
+            sb.AppendLine("                default: return Fallback;");
             sb.AppendLine("            }");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
@@ -115,17 +115,17 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("    /// </summary>");
             sb.AppendLine("    public readonly struct SqlDynamic : ISqlString");
             sb.AppendLine("    {");
-            sb.AppendLine($"        private readonly {funcType} _ansi;");
-            sb.AppendLine("        /// <summary>ANSI SQL — shared fallback. Evaluated via factory.</summary>");
-            sb.AppendLine("        public string AnsiSql => _ansi?.Invoke() ?? string.Empty;");
+            sb.AppendLine($"        private readonly {funcType} _fallback;");
+            sb.AppendLine("        /// <summary>Fallback SQL — shared default. Evaluated via factory.</summary>");
+            sb.AppendLine("        public string Fallback => _fallback?.Invoke() ?? string.Empty;");
             sb.AppendLine();
 
             foreach (var providerName in config.DistinctProviderNames)
             {
                 var fieldName = "_" + providerName.ToLowerInvariant() + "Factory";
                 sb.AppendLine($"        private readonly {funcType} {fieldName};");
-                sb.AppendLine($"        /// <summary>{providerName} specific SQL. Evalulated via factory, falls back to <see cref=\"AnsiSql\"/>.</summary>");
-                sb.AppendLine($"        public string {providerName} => {fieldName}?.Invoke() ?? AnsiSql;");
+                sb.AppendLine($"        /// <summary>{providerName} specific SQL. Evalulated via factory, falls back to <see cref=\"Fallback\"/>.</summary>");
+                sb.AppendLine($"        public string {providerName} => {fieldName}?.Invoke() ?? Fallback;");
                 sb.AppendLine();
             }
 
@@ -139,9 +139,9 @@ namespace SqlPartial.Generator.Core
                 first = false;
             }
             if (!first) sb.Append(", ");
-            sb.AppendLine($"{funcType} ansi = null)");
+            sb.AppendLine($"{funcType} fallback = null)");
             sb.AppendLine("        {");
-            sb.AppendLine("            _ansi = ansi;");
+            sb.AppendLine("            _fallback = fallback;");
             foreach (var providerName in config.DistinctProviderNames)
             {
                 sb.AppendLine($"            _{providerName.ToLowerInvariant()}Factory = {providerName.ToLowerInvariant()};");
@@ -149,10 +149,10 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            // Constructor for pure ANSI string (wraps in factory)
-            sb.Append("        public SqlDynamic(string ansiSql) : this(");
+            // Constructor for pure Fallback string (wraps in factory)
+            sb.Append("        public SqlDynamic(string fallback) : this(");
             for (int i = 0; i < providerNames.Length; i++) sb.Append("null, ");
-            sb.AppendLine("() => ansiSql) { }");
+            sb.AppendLine("() => fallback) { }");
             sb.AppendLine();
 
             // Get method
@@ -164,7 +164,7 @@ namespace SqlPartial.Generator.Core
             {
                 sb.AppendLine($"                case \"{providerName}\": return {providerName};");
             }
-            sb.AppendLine("                default: return AnsiSql;");
+            sb.AppendLine("                default: return Fallback;");
             sb.AppendLine("            }");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
@@ -204,9 +204,9 @@ namespace SqlPartial.Generator.Core
 
             foreach (var group in groups)
             {
-                var ansiContent = group.GetContent(FilePathParser.AnsiSqlProviderName);
+                var fallbackContent = group.GetContent(FilePathParser.FallbackProviderName);
                 sb.AppendLine($"        private static readonly {stringsType} Sql{group.QueryName} = new {stringsType}(");
-                sb.Append($"            @\"{ansiContent}\"");
+                sb.Append($"            @\"{fallbackContent}\"");
 
                 // Provider-specific — only emit when the file exists for that provider name
                 foreach (var providerName in config.DistinctProviderNames)

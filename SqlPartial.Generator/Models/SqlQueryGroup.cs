@@ -7,7 +7,7 @@ namespace SqlPartial.Generator.Models
     /// <summary>
     /// All .sql files that belong to one (Namespace, ClassName, QueryName) triple,
     /// keyed by provider name.
-    /// e.g. UserRepo.GetById → { "AnsiSql": "SELECT …", "PostgreSql": "SELECT …" }
+    /// e.g. UserRepo.GetById → { "Fallback": "SELECT …", "PostgreSql": "SELECT …" }
     /// </summary>
     internal sealed class SqlQueryGroup(
         string ns,
@@ -24,11 +24,11 @@ namespace SqlPartial.Generator.Models
 
 
         /// <summary>
-        /// Returns content for a provider name, falling back to "AnsiSql" (ANSI) if not present.
+        /// Returns content for a provider name, falling back to "Fallback" if not present.
         /// </summary>
         public string GetContent(string providerName) =>
             ContentByProviderName.TryGetValue(providerName, out var v) ? v :
-            ContentByProviderName.TryGetValue("AnsiSql", out var ansi) ? ansi :
+            ContentByProviderName.TryGetValue(FilePathParser.FallbackProviderName, out var fallback) ? fallback :
             string.Empty;
 
         public bool Equals(SqlQueryGroup? other) =>

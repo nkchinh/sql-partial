@@ -5,16 +5,16 @@ namespace SqlPartial.Integration.NoFallback
     public partial class RealUsageTests
     {
         [Fact]
-        public void RealUsageTests_NoFallback_ShouldReturnEmptyForAnsi()
+        public void RealUsageTests_NoFallback_ShouldReturnEmptyForFallback()
         {
             // GetPartialProviders only has PG and MS versions
             var sql = SqlGetPartialProviders;
 
-            Assert.Equal(string.Empty, sql.AnsiSql);
+            Assert.Equal(string.Empty, sql.Fallback);
             Assert.Equal("SELECT 'Postgres Only' FROM System;", sql.PostgreSql);
             Assert.Equal("SELECT 'MS Only' FROM System;", sql.SqlServer);
 
-            // Implicit conversion should return empty string if no ANSI file exists
+            // Implicit conversion should return empty string if no fallback file exists
             string query = sql;
             Assert.Equal(string.Empty, query);
 

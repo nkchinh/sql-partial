@@ -9,7 +9,7 @@ namespace SqlPartial.Integration.MultiDbms
         {
             var sql = SqlGetUsers;
 
-            Assert.Equal("SELECT * FROM Users;", sql.AnsiSql);
+            Assert.Equal("SELECT * FROM Users;", sql.Fallback);
             Assert.Equal("SELECT * FROM Users LIMIT $1;", sql.PostgreSql);
             Assert.Equal("SELECT TOP (@Count) * FROM Users;", sql.SqlServer);
 

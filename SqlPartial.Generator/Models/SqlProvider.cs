@@ -5,7 +5,7 @@ namespace SqlPartial.Generator.Models
     /// <summary>
     /// Represents a configured DBMS provider parsed from SqlPartialProviders property.
     /// e.g. "pg.sql:PostgreSql" → Extension=".pg.sql", Name="PostgreSql"
-    /// ANSI is always implicitly available and is not stored here.
+    /// Fallback is always implicitly available and is not stored here.
     /// </summary>
     internal sealed class SqlProvider(string extension, string name) : System.IEquatable<SqlProvider>
     {

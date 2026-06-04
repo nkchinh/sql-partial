@@ -83,7 +83,7 @@ Parsed from MSBuild global properties once. It remains stable between file edits
 
 ### `SqlFile`
 
-Represents a parsed SQL file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. It stores the resolved `ProviderName` (e.g., `"PostgreSql"` or `"AnsiSql"`).
+Represents a parsed SQL file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. It stores the resolved `ProviderName` (e.g., `"PostgreSql"` or `"Fallback"`).
 
 ### `SqlQueryGroup`
 
@@ -92,8 +92,8 @@ Groups all `SqlFile` objects with the same `(Namespace, ClassName, QueryName)`. 
 `GetContent(providerName)` method:
 ```
 providerName exists in dict → returns content for that provider
-providerName not found      → falls back to "AnsiSql"
-"AnsiSql" missing           → returns string.Empty
+providerName not found      → falls back to "Fallback"
+"Fallback" missing           → returns string.Empty
 ```
 
 ---
@@ -123,7 +123,7 @@ Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects changes in tracked fi
 ### `ISqlString` Interface
 
 Generated once per project. Provides a common contract for both static and dynamic SQL:
-- `AnsiSql { get; }`
+- `Fallback { get; }`
 - `Get(string providerName)`
 
 ### `SqlStrings` struct
@@ -131,17 +131,17 @@ Generated once per project. Provides a common contract for both static and dynam
 Generated once per project (unless `ExternalSqlStringsType` is set). The struct is `readonly` to ensure immutability and implements `ISqlString`.
 
 **Key Features**:
-- **Consistent Fallback**: DBMS-specific properties (e.g., `PostgreSql`) use private backing fields and expression-bodied getters that automatically return `AnsiSql` if the specific content is missing.
+- **Consistent Fallback**: DBMS-specific properties (e.g., `PostgreSql`) use private backing fields and expression-bodied getters that automatically return `Fallback` if the specific content is missing.
 - **Deduplication**: If multiple extensions (e.g., `.pg.sql` and `.pgsql`) map to the same `PostgreSql` provider, the struct will only contain one `PostgreSql` property.
 - **Backward Compatibility**: The generator automatically detects the project's C# version. If C# < 8.0, it won't emit `#nullable` directives.
-- **Implicit Conversion**: Supports implicit cast to `string` (returns `AnsiSql`) and from `string` (creates an ANSI-only `SqlStrings`).
+- **Implicit Conversion**: Supports implicit cast to `string` (returns `Fallback`) and from `string` (creates a fallback-only `SqlStrings`).
 - **Manual Construction**: Users can manually create `SqlStrings` for ad-hoc static SQL.
 
 ### `SqlDynamic` struct
 
 Generated once per project. Implements `ISqlString` and allows for lazy-evaluated dynamic SQL using factories (`Func<string>`).
 
-- **Fully Factory-Based**: All properties, including `AnsiSql`, are evaluated via factories. This ensures consistency and allows the entire query to be dynamic.
+- **Fully Factory-Based**: All properties, including `Fallback`, are evaluated via factories. This ensures consistency and allows the entire query to be dynamic.
 - **Zero Caching**: Evaluates the factory every time a property is accessed. This keeps the struct extremely lightweight (no heap-allocated `Lazy<T>` objects) and ensures truly dynamic behavior (e.g., embedding timestamps).
 - **Generic Support**: Designed to be used as a generic constraint: `where TSql : struct, ISqlString`.
 
@@ -158,7 +158,7 @@ Generated properties are `private static readonly` and prefixed with `Sql` (e.g.
 The parser uses a **longest-match-first** strategy against configured extensions to resolve the provider.
 
 1.  **Custom Extensions**: It checks if the filename ends with any extension configured in `SqlPartialProviders` (sorted by length descending to prevent partial matching).
-2.  **ANSI Fallback**: If no match, it checks for hardcoded defaults: `.an.sql` and `.sql`, mapping them to `AnsiSql`.
+2.  **Fallback Mechanism**: If no match, it checks for hardcoded defaults: `.an.sql` and `.sql`, mapping them to `Fallback`.
 3.  **Decomposition**: The matched extension is stripped, and the remaining filename is split by `.` to extract `ClassName` and `QueryName`.
 
 **Example**: `UserRepo.GetUsers.pg.sql`

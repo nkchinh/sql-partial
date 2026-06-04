@@ -17,7 +17,7 @@ namespace SqlPartial.Generator.Models
         public string RootNamespace { get; } = rootNamespace;
 
         /// <summary>
-        /// Configured DBMS providers (excluding ANSI which is always implicit).
+        /// Configured DBMS providers (excluding fallback which is always implicit).
         /// Parsed from SqlPartialProviders = "pg.sql:PostgreSql;pgsql:PostgreSql"
         /// </summary>
         public ImmutableArray<SqlProvider> Providers { get; } = providers;

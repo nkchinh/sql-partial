@@ -14,12 +14,12 @@ Writing SQL as string literals inside C# is a painful experience:
 
 ## How it works
 
-Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to ANSI SQL automatically.
+Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to the fallback SQL automatically.
 
 ```
 UserRepo.GetActive.ms.sql     → SQL Server version
 UserRepo.GetActive.pg.sql     → PostgreSQL version
-UserRepo.GetActive.sql        → (Optional) Generic ANSI fallback
+UserRepo.GetActive.sql        → (Optional) Shared fallback
 ```
 
 Generated output:
@@ -29,7 +29,7 @@ partial class UserRepo
 {
     private static readonly SqlStrings SqlGetActive = new SqlStrings(
         // From UserRepo.GetActive.sql
-        ansiSql:    @"SELECT * FROM Users WHERE IsActive = 1",
+        fallback:   @"SELECT * FROM Users WHERE IsActive = 1",
         postgresql: @"SELECT * FROM Users WHERE IsActive = true",
         sqlserver:  @"SELECT * FROM Users WHERE IsActive = 1"
     );
@@ -42,7 +42,7 @@ Runtime usage:
 // providerName comes from appsettings, e.g. "PostgreSql"
 string sql = UserRepo.SqlGetActive.Get(providerName);
 
-// For single-DBMS projects, use implicit conversion (returns ANSI)
+// For single-DBMS projects, use implicit conversion (returns fallback)
 string sqlSimple = UserRepo.SqlGetActive;
 ```
 
@@ -68,7 +68,7 @@ npx skills add nkchinh/sql-partial --skill sql-partial
 
 ### 1. Configure DBMS providers
 
-Add to your `.csproj`. ANSI SQL is always available — only declare additional providers for multi-DBMS support.
+Add to your `.csproj`. A fallback is always available — only declare additional providers for multi-DBMS support.
 
 **SqlPartial is DBMS-agnostic.** You can define any provider by choosing an **extension** (matched at the end of the filename) and a **Display Name** (used in C# code and `Get()` calls). Multiple extensions can map to the same DBMS.
 
@@ -120,16 +120,15 @@ The namespace is derived automatically from `$(RootNamespace)` + the relative di
 ## File naming convention
 
 ```
-ClassName.QueryName.sql          ANSI SQL (shared fallback)
-ClassName.QueryName.an.sql       Same as above — explicit ANSI variant
+ClassName.QueryName.sql          Shared fallback (ANSI SQL recommended)
+ClassName.QueryName.an.sql       Same as above — explicit fallback variant
 ClassName.QueryName.pg.sql       PostgreSQL-specific
 ClassName.QueryName.pgsql        Also PostgreSQL (if configured)
 ClassName.QueryName.ms.sql       SQL Server-specific
-```
 
 - **ClassName** — must match the `partial class` name exactly.
 - **QueryName** — becomes the property name on the class (prefixed with `Sql`).
-- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql`/`.an.sql` for ANSI.
+- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql`/`.an.sql` for the fallback.
 
 ---
 
@@ -139,7 +138,7 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 Use `--#exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
 
-**File: `ProductRepo.GetById.sql`** (Truly generic ANSI SQL)
+**File: `ProductRepo.GetById.sql`** (Shared fallback SQL)
 ```sql
 --#exclude
 -- Parameters for local testing & documentation
@@ -149,6 +148,8 @@ DECLARE @Id INT = 1;
 SELECT p.Id, p.Name, p.Price
 FROM Products p
 WHERE p.Id = @Id
+```
+
 ```
 
 ### 2. Handling Multi-DBMS Transitions
@@ -253,14 +254,14 @@ await QueryAsync(SqlGetActiveUsers);
 Best for simple one-liners where a separate file would be overkill.
 - **Consumption:** Pass strings directly (via implicit conversion) or use the `SqlStrings` constructor for multiple providers.
 ```csharp
-// Simple ANSI-only
+// Simple fallback-only
 await QueryAsync("SELECT * FROM Version");
 
 // Multi-DBMS without a file (PostgreSQL, SQL Server, and SQLite)
 await QueryAsync(new SqlStrings(
     postgresql: "SELECT name FROM users LIMIT 10",
     sqlserver:  "SELECT TOP 10 name FROM users",
-    ansiSql:    "SELECT name FROM users" // Fallback for SQLite and others
+    fallback:   "SELECT name FROM users" // Fallback for SQLite and others
 ));
 ```
 
@@ -271,7 +272,7 @@ Best for SQL that needs runtime calculations (table partitioning, dynamic filter
 var dynamicQuery = new SqlDynamic(
     postgresql: () => $"SELECT * FROM sales_{DateTime.Now:yyyy}",
     sqlserver:  () => $"SELECT * FROM sales_{DateTime.Now:yyyy}",
-    ansi: () => "SELECT * FROM sales"
+    fallback: () => "SELECT * FROM sales"
 );
 await QueryAsync(dynamicQuery);
 ```

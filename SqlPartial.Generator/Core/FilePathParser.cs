@@ -7,14 +7,14 @@ namespace SqlPartial.Generator.Core
 {
     internal static class FilePathParser
     {
-        public const string AnsiSqlProviderName = "AnsiSql";
-        private static readonly string[] DefaultAnsiExtensions = { ".an.sql", ".sql" };
+        public const string FallbackProviderName = "Fallback";
+        private static readonly string[] DefaultFallbackExtensions = { ".an.sql", ".sql" };
 
         /// <summary>
         /// Parses a SQL file path into (namespace, className, queryName, providerName).
         ///
         /// Matching Logic:
-        ///   1. Combine configured extensions with hardcoded ANSI defaults (.an.sql, .sql).
+        ///   1. Combine configured extensions with hardcoded fallback defaults (.an.sql, .sql).
         ///   2. Sort by length descending to ensure the longest extension matches first.
         ///   3. Strip the matched extension and split remaining filename into ClassName.QueryName.
         /// </summary>
@@ -24,12 +24,12 @@ namespace SqlPartial.Generator.Core
             var fullPath = filePath;
             var filename = Path.GetFileName(filePath);
 
-            // 1. Combine user providers with hardcoded ANSI defaults
-            // ANSI defaults are added FIRST to ensure they win in case of duplicate extensions
+            // 1. Combine user providers with hardcoded fallback defaults
+            // Fallback defaults are added FIRST to ensure they win in case of duplicate extensions
             var allPossibleProviders = new System.Collections.Generic.List<SqlProvider>
             {
-                new(".an.sql", AnsiSqlProviderName),
-                new(".sql", AnsiSqlProviderName)
+                new(".an.sql", FallbackProviderName),
+                new(".sql", FallbackProviderName)
             };
             allPossibleProviders.AddRange(providers);
 
@@ -41,7 +41,7 @@ namespace SqlPartial.Generator.Core
                 .ThenBy(p => p.Extension);
 
             string? matchedExtension = null;
-            string providerName = AnsiSqlProviderName;
+            string providerName = FallbackProviderName;
 
             foreach (var provider in sortedProviders)
             {

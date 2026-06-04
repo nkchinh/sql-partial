@@ -74,10 +74,10 @@ namespace SqlPartial.Tests
 
             Assert.Contains("public interface ISqlString", source);
             Assert.Contains("public readonly struct SqlStrings : ISqlString", source);
-            Assert.Contains("public static implicit operator SqlStrings(string ansiSql)", source);
+            Assert.Contains("public static implicit operator SqlStrings(string fallback)", source);
             Assert.Contains("public readonly struct SqlDynamic : ISqlString", source);
             Assert.Contains("private readonly System.Func<string>? _postgresqlFactory;", source);
-            Assert.Contains("public string PostgreSql => _postgresqlFactory?.Invoke() ?? AnsiSql;", source);
+            Assert.Contains("public string PostgreSql => _postgresqlFactory?.Invoke() ?? Fallback;", source);
         }
 
         [Fact]
@@ -93,8 +93,8 @@ namespace SqlPartial.Tests
             var source = SourceBuilder.BuildSqlStringsStruct(config, false);
 
             Assert.DoesNotContain("#nullable", source);
-            Assert.Contains("public string PostgreSql => _postgresql ?? AnsiSql;", source);
-            Assert.Contains("public SqlStrings(string ansiSql, string postgresql = null)", source);
+            Assert.Contains("public string PostgreSql => _postgresql ?? Fallback;", source);
+            Assert.Contains("public SqlStrings(string fallback, string postgresql = null)", source);
         }
 
         [Fact]
@@ -109,7 +109,7 @@ namespace SqlPartial.Tests
 
             var contentByProvider = new Dictionary<string, string>
             {
-                { FilePathParser.AnsiSqlProviderName, "SELECT 1;" },
+                { FilePathParser.FallbackProviderName, "SELECT 1;" },
                 { "PostgreSql", "SELECT 2;" }
             }.ToImmutableDictionary();
 
@@ -148,7 +148,7 @@ namespace SqlPartial.Tests
                 "MyProject.Repos",
                 "UserRepo",
                 "GetUsers",
-                new Dictionary<string, string> { { FilePathParser.AnsiSqlProviderName, "SELECT 1;" } }.ToImmutableDictionary()));
+                new Dictionary<string, string> { { FilePathParser.FallbackProviderName, "SELECT 1;" } }.ToImmutableDictionary()));
 
             var source = SourceBuilder.BuildPartialClass(
                 "MyProject.Repos",
@@ -161,10 +161,10 @@ namespace SqlPartial.Tests
         }
 
         [Theory]
-        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", FilePathParser.AnsiSqlProviderName)]
+        [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", FilePathParser.FallbackProviderName)]
         [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.pg.sql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "PostgreSql")]
         [InlineData(@"C:\Proj\Repos\UserRepo.GetUsers.pgsql", "MyProj", @"C:\Proj", "MyProj.Repos", "UserRepo", "GetUsers", "PostgreSql")]
-        [InlineData(@"C:\Proj\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj", "UserRepo", "GetUsers", FilePathParser.AnsiSqlProviderName)]
+        [InlineData(@"C:\Proj\UserRepo.GetUsers.sql", "MyProj", @"C:\Proj", "MyProj", "UserRepo", "GetUsers", FilePathParser.FallbackProviderName)]
         public void FilePathParser_ShouldParseCorrectly(
             string path, string rootNs, string projDir,
             string expectedNs, string expectedClass, string expectedQuery, string expectedProvider)
@@ -198,7 +198,7 @@ namespace SqlPartial.Tests
         }
 
         [Fact]
-        public void SqlQueryGroup_GetContent_ShouldReturnEmptyIfAnsiMissing()
+        public void SqlQueryGroup_GetContent_ShouldReturnEmptyIfFallbackMissing()
         {
             var contentByProvider = new Dictionary<string, string>
             {
@@ -210,8 +210,8 @@ namespace SqlPartial.Tests
             // Existing provider
             Assert.Equal("SELECT PG;", group.GetContent("PostgreSql"));
 
-            // Missing provider AND missing ANSI -> empty string
-            Assert.Equal(string.Empty, group.GetContent("AnsiSql"));
+            // Missing provider AND missing fallback -> empty string
+            Assert.Equal(string.Empty, group.GetContent("Fallback"));
             Assert.Equal(string.Empty, group.GetContent("Unknown"));
         }
 
@@ -234,12 +234,12 @@ namespace SqlPartial.Tests
 
         [Theory]
         [InlineData(@"C:\Proj\User.Get.pg.sql", "PostgreSql")] // Longest match
-        [InlineData(@"C:\Proj\User.Get.sql", FilePathParser.AnsiSqlProviderName)] // Fallback
+        [InlineData(@"C:\Proj\User.Get.sql", FilePathParser.FallbackProviderName)] // Fallback
         public void FilePathParser_ShouldHandleAmbiguousExtensions(string path, string expectedProvider)
         {
             var providers = ImmutableArray.Create(
                 new SqlProvider(".pg.sql", "PostgreSql"),
-                new SqlProvider(".sql", "MySql") // Ambiguous with ANSI default
+                new SqlProvider(".sql", "MySql") // Ambiguous with fallback default
             );
 
             var result = FilePathParser.TryParse(path, "NS", @"C:\Proj", providers);

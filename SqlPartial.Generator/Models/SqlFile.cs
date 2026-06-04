@@ -4,7 +4,7 @@ namespace SqlPartial.Generator.Models
 {
     /// <summary>
     /// Represents a single .sql AdditionalFile, parsed from its path and content.
-    /// Filename convention: ClassName.QueryName.sql        → provider = "AnsiSql" (ANSI, default)
+    /// Filename convention: ClassName.QueryName.sql        → provider = "Fallback" (default)
     ///                      ClassName.QueryName.pg.sql     → provider = "PostgreSql"
     /// </summary>
     internal sealed class SqlFile : System.IEquatable<SqlFile>
@@ -23,7 +23,7 @@ namespace SqlPartial.Generator.Models
 
         /// <summary>
         /// Provider name this file belongs to.
-        /// "AnsiSql" means ANSI / shared fallback.
+        /// "Fallback" means the shared default.
         /// </summary>
         public string ProviderName { get; }
 
