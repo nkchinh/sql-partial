@@ -29,11 +29,30 @@ SqlPartial.Generator turns `.sql` files into strongly-typed C# constants. This s
 
 ### 1. Research & Context Gathering
 Before touching any files, verify:
+- **Usage Pattern**: Decide if this query belongs in a `.sql` file (**Auto**), an inline string (**Manual Static**), or requires logic-based generation (**Manual Dynamic**).
 - **Target Class**: Which `partial class` will hold the query?
 - **Current Setup**: Does `.csproj` have `SqlPartialProviders` and `AdditionalFiles` configured?
-- **Existing Queries**: Does this query already exist? Is it generic or provider-specific?
 
-### 2. The Migration & Transition Rule (CRITICAL)
+### 2. The Abstraction Rule (ISqlString)
+Always leverage the `ISqlString` interface in your Data Access Layer. 
+- **Guidance**: Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`. 
+- **Benefit**: This allows the project to mix Auto (generated) and Manual (static/dynamic) SQL seamlessly with zero-allocation performance.
+
+```csharp
+public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString {
+    string rawSql = sql.Get(_provider);
+    return await _connection.QueryAsync<T>(rawSql);
+}
+```
+
+### 3. Usage Pattern Selection
+| Pattern | Best For... | Implementation |
+| :--- | :--- | :--- |
+| **Auto** | Large, complex queries | Create `.sql` files; use generated `SqlStrings` |
+| **Manual Static** | Simple one-liners | Use inline string or `new SqlStrings("sql")` |
+| **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(ansi: () => ...)` |
+
+### 4. The Migration & Transition Rule (CRITICAL)
 If you are moving from a single DBMS (e.g., just ANSI or just MS SQL) to supporting multiple:
 1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[extension]` (e.g., `.ms.sql`).
 2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `--#testpart` / `--/testpart` to `--#exclude` / `--/exclude`. 

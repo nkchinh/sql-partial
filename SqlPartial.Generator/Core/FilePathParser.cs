@@ -28,8 +28,8 @@ namespace SqlPartial.Generator.Core
             // ANSI defaults are added FIRST to ensure they win in case of duplicate extensions
             var allPossibleProviders = new System.Collections.Generic.List<SqlProvider>
             {
-                new SqlProvider(".an.sql", AnsiSqlProviderName),
-                new SqlProvider(".sql", AnsiSqlProviderName)
+                new(".an.sql", AnsiSqlProviderName),
+                new(".sql", AnsiSqlProviderName)
             };
             allPossibleProviders.AddRange(providers);
 

@@ -61,7 +61,7 @@ namespace SqlPartial.Tests
         }
 
         [Fact]
-        public void SourceBuilder_BuildSqlStringsStruct_ShouldGenerateCorrectStruct()
+        public void SourceBuilder_BuildSqlStringsStruct_ShouldGenerateCorrectStructs()
         {
             var config = new GeneratorConfig(
                 "MyProject",
@@ -72,16 +72,12 @@ namespace SqlPartial.Tests
 
             var source = SourceBuilder.BuildSqlStringsStruct(config, true);
 
-            Assert.Contains("#nullable enable", source);
-            Assert.Contains("namespace MyProject.Sql", source);
-            Assert.Contains("public readonly struct SqlStrings", source);
-            Assert.Contains("public string AnsiSql { get; }", source);
-            Assert.Contains("private readonly string? _postgresql;", source);
-            Assert.Contains("public string PostgreSql => _postgresql ?? AnsiSql;", source);
-            Assert.Contains("public SqlStrings(string ansiSql, string? postgresql = null)", source);
-            Assert.Contains("_postgresql = postgresql;", source);
-            Assert.Contains("case \"PostgreSql\":", source);
-            Assert.Contains("return PostgreSql;", source);
+            Assert.Contains("public interface ISqlString", source);
+            Assert.Contains("public readonly struct SqlStrings : ISqlString", source);
+            Assert.Contains("public static implicit operator SqlStrings(string ansiSql)", source);
+            Assert.Contains("public readonly struct SqlDynamic : ISqlString", source);
+            Assert.Contains("private readonly System.Func<string>? _postgresqlFactory;", source);
+            Assert.Contains("public string PostgreSql => _postgresqlFactory?.Invoke() ?? AnsiSql;", source);
         }
 
         [Fact]

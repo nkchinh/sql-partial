@@ -120,17 +120,30 @@ Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects changes in tracked fi
 
 ## Code Generation — `SourceBuilder`
 
+### `ISqlString` Interface
+
+Generated once per project. Provides a common contract for both static and dynamic SQL:
+- `AnsiSql { get; }`
+- `Get(string providerName)`
+
 ### `SqlStrings` struct
 
-Generated once per project (unless `ExternalSqlStringsType` is set). The struct is `readonly` to ensure immutability.
+Generated once per project (unless `ExternalSqlStringsType` is set). The struct is `readonly` to ensure immutability and implements `ISqlString`.
 
 **Key Features**:
+- **Consistent Fallback**: DBMS-specific properties (e.g., `PostgreSql`) use private backing fields and expression-bodied getters that automatically return `AnsiSql` if the specific content is missing.
 - **Deduplication**: If multiple extensions (e.g., `.pg.sql` and `.pgsql`) map to the same `PostgreSql` provider, the struct will only contain one `PostgreSql` property.
-- **Backward Compatibility**: The generator automatically detects the project's C# version. If C# < 8.0, it won't emit `#nullable` directives and will use `string` instead of `string?`.
-- **Implicit Conversion**: The `SqlStrings` struct can be implicitly cast to `string`, returning `AnsiSql`. This keeps code concise for projects using a single DBMS.
-- **Get(string providerName)**: Performs a switch on the Display Name (e.g., `"PostgreSql"`) to return the appropriate string.
+- **Backward Compatibility**: The generator automatically detects the project's C# version. If C# < 8.0, it won't emit `#nullable` directives.
+- **Implicit Conversion**: Supports implicit cast to `string` (returns `AnsiSql`) and from `string` (creates an ANSI-only `SqlStrings`).
+- **Manual Construction**: Users can manually create `SqlStrings` for ad-hoc static SQL.
 
-All properties use `{ get; }` (getter-only) and are initialized via the constructor for compatibility with C# 7.3.
+### `SqlDynamic` struct
+
+Generated once per project. Implements `ISqlString` and allows for lazy-evaluated dynamic SQL using factories (`Func<string>`).
+
+- **Fully Factory-Based**: All properties, including `AnsiSql`, are evaluated via factories. This ensures consistency and allows the entire query to be dynamic.
+- **Zero Caching**: Evaluates the factory every time a property is accessed. This keeps the struct extremely lightweight (no heap-allocated `Lazy<T>` objects) and ensures truly dynamic behavior (e.g., embedding timestamps).
+- **Generic Support**: Designed to be used as a generic constraint: `where TSql : struct, ISqlString`.
 
 ### Partial Class
 

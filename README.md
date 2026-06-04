@@ -237,6 +237,62 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 
 ---
 
+## Usage Patterns
+
+SqlPartial supports three main ways to author and consume SQL, all unified under the `ISqlString` interface.
+
+### 1. Auto (From `.sql` files)
+Best for large, complex queries. You get full IDE support (syntax highlighting, formatting).
+- **Setup:** Create `ClassName.QueryName.sql` (or `.pg.sql`, `.ms.sql`, etc.)
+- **Consumption:** Use the generated static properties.
+```csharp
+await QueryAsync(SqlGetActiveUsers);
+```
+
+### 2. Manual Static (Inline strings)
+Best for simple one-liners where a separate file would be overkill.
+- **Consumption:** Pass strings directly (via implicit conversion) or use the `SqlStrings` constructor for multiple providers.
+```csharp
+// Simple ANSI-only
+await QueryAsync("SELECT * FROM Version");
+
+// Multi-DBMS without a file (PostgreSQL, SQL Server, and SQLite)
+await QueryAsync(new SqlStrings(
+    postgresql: "SELECT name FROM users LIMIT 10",
+    sqlserver:  "SELECT TOP 10 name FROM users",
+    ansiSql:    "SELECT name FROM users" // Fallback for SQLite and others
+));
+```
+
+### 3. Manual Dynamic (Logic-based)
+Best for SQL that needs runtime calculations (table partitioning, dynamic filtering).
+- **Consumption:** Use `SqlDynamic` with factories (`Func<string>`).
+```csharp
+var dynamicQuery = new SqlDynamic(
+    postgresql: () => $"SELECT * FROM sales_{DateTime.Now:yyyy}",
+    sqlserver:  () => $"SELECT * FROM sales_{DateTime.Now:yyyy}",
+    ansi: () => "SELECT * FROM sales"
+);
+await QueryAsync(dynamicQuery);
+```
+
+---
+
+## Generic Execution Pattern
+
+To get the most out of SqlPartial, use `ISqlString` as a generic constraint in your data access layer. This allows your methods to accept SQL from any source (Auto or Manual) with zero allocation overhead for static cases.
+
+```csharp
+public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString
+{
+    // 'dbProvider' is resolved at runtime from your configuration (e.g., "PostgreSql", "SqlServer")
+    string rawSql = sql.Get(dbProvider);
+    return await connection.QueryAsync<T>(rawSql);
+}
+```
+
+---
+
 ## License
 
 This project is licensed under the MIT License.

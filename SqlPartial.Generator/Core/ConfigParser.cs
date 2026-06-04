@@ -14,13 +14,13 @@ namespace SqlPartial.Generator.Core
             var global = optionsProvider.GlobalOptions;
 
             global.TryGetValue("build_property.RootNamespace", out var rootNamespace);
-            
+
             // Try normalized property first (semicolons replaced by commas in .targets)
             if (!global.TryGetValue("build_property.SqlPartialProviders_Normalized", out var providersRaw))
             {
                 global.TryGetValue("build_property.SqlPartialProviders", out providersRaw);
             }
-            
+
             global.TryGetValue("build_property.SqlPartialStringsNamespace", out var stringsNs);
             global.TryGetValue("build_property.SqlPartialStringsType", out var externalType);
             global.TryGetValue("build_property.Nullable", out var nullable);
