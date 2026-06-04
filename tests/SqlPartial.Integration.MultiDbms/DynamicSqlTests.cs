@@ -14,7 +14,7 @@ namespace SqlPartial.Integration.MultiDbms
         public void GenericMethod_ShouldWorkWithAllSqlTypes()
         {
             // 1. Static SQL (from generator - simulated here by manual ctor for convenience)
-            var staticSql = new SqlStrings("SELECT FALLBACK", "SELECT PG");
+            var staticSql = new SqlStrings(postgresql: "SELECT PG", fallback: "SELECT FALLBACK");
             Assert.Equal("SELECT PG", Execute(staticSql, "PostgreSql"));
             Assert.Equal("SELECT FALLBACK", Execute(staticSql, "Unknown"));
 

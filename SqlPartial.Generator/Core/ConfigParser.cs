@@ -24,6 +24,7 @@ namespace SqlPartial.Generator.Core
             global.TryGetValue("build_property.SqlPartialStringsNamespace", out var stringsNs);
             global.TryGetValue("build_property.SqlPartialStringsType", out var externalType);
             global.TryGetValue("build_property.Nullable", out var nullable);
+            global.TryGetValue("build_property.SqlPartialWarnOnUnrecognized", out var warnRaw);
 
             rootNamespace = string.IsNullOrWhiteSpace(rootNamespace) ? "Generated" : rootNamespace!.Trim();
 
@@ -34,13 +35,15 @@ namespace SqlPartial.Generator.Core
                 : stringsNs!.Trim();
 
             var nullableEnabled = string.Equals(nullable, "enable", System.StringComparison.OrdinalIgnoreCase);
+            var warnOnUnrecognized = string.Equals(warnRaw, "true", System.StringComparison.OrdinalIgnoreCase);
 
             return new GeneratorConfig(
                 rootNamespace,
                 providers,
                 sqlStringsNamespace,
                 string.IsNullOrWhiteSpace(externalType) ? null : externalType!.Trim(),
-                nullableEnabled
+                nullableEnabled,
+                warnOnUnrecognized
             );
         }
 

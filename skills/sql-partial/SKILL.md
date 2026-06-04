@@ -97,7 +97,7 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
 - **[Configuration Guide](references/configuration.md)**: Deep dive into `.csproj` properties and advanced MSBuild setup.
 - **[Pattern Library](references/patterns.md)**: Examples of Fallback vs. Provider-specific SQL, and handling exclusion blocks.
-- **[Troubleshooting](references/troubleshooting.md)**: Common errors like `SQLGEN001`, namespace mismatches, and trigger failures.
+- **[Troubleshooting](references/troubleshooting.md)**: Common errors like `SQLPG001`, namespace mismatches, and trigger failures.
 
 ---
 

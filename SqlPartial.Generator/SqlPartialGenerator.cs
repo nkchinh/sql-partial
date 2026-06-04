@@ -64,26 +64,55 @@ namespace SqlPartial.Generator
                 {
                     var ((filePath, content), (cfg, projDir)) = tuple;
                     var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.Providers);
-                    if (parsed is null) return null;
+                    
+                    if (parsed is null)
+                    {
+                        return new SqlFileResult(filePath, null, isUnrecognized: true);
+                    }
 
                     var (ns, className, queryName, providerName) = parsed.Value;
-                    return new SqlFile(filePath, ns, className, queryName, providerName, content);
-                })
-                .Where(static f => f is not null);
+                    var file = new SqlFile(filePath, ns, className, queryName, providerName, content);
+                    return new SqlFileResult(filePath, file, isUnrecognized: false);
+                });
 
-            // ── Collect all files, group into SqlQueryGroup ──────────────────
+            // ── Report SQLPG004 (Empty) & SQLPG005 (Unrecognized) ────────────
+            context.RegisterSourceOutput(parsedFiles.Combine(config), static (ctx, tuple) =>
+            {
+                var (result, cfg) = tuple;
+                if (result.IsUnrecognized)
+                {
+                    if (cfg.WarnOnUnrecognized)
+                    {
+                        ReportDiagnostic(ctx, "SQLPG005", "Unrecognized SQL file extension", 
+                            $"File '{System.IO.Path.GetFileName(result.FilePath)}' does not match any configured provider or fallback extension.", 
+                            DiagnosticSeverity.Warning, result.FilePath);
+                    }
+                    return;
+                }
+
+                if (result.File != null && string.IsNullOrWhiteSpace(result.File.Content))
+                {
+                    ReportDiagnostic(ctx, "SQLPG004", "Empty SQL content", 
+                        $"File '{System.IO.Path.GetFileName(result.File.FilePath)}' is empty after cleaning.", 
+                        DiagnosticSeverity.Warning, result.File.FilePath);
+                }
+            });
+
+            // ── Filter valid files and group into SqlQueryGroup ──────────────
             var groups = parsedFiles
+                .Where(static r => r.File != null)
+                .Select(static (r, _) => r.File!)
                 .Collect()
                 .SelectMany(static (files, _) =>
                     files
-                        .GroupBy(f => (f!.Namespace, f.ClassName, f.QueryName))
+                        .GroupBy(f => (f.Namespace, f.ClassName, f.QueryName))
                         .Select(g =>
                         {
                             var contents = new System.Collections.Generic.Dictionary<string, string>();
                             foreach (var file in g)
                             {
                                 // If multiple extensions map to same provider name, first one wins
-                                if (!contents.ContainsKey(file!.ProviderName))
+                                if (!contents.ContainsKey(file.ProviderName))
                                 {
                                     contents.Add(file.ProviderName, file.Content);
                                 }
@@ -128,7 +157,7 @@ namespace SqlPartial.Generator
                 }
                 catch (Exception ex)
                 {
-                    ReportError(ctx, "SQLGEN001", ex.Message);
+                    ReportDiagnostic(ctx, "SQLPG001", "Struct Generation Failed", ex.Message, DiagnosticSeverity.Error);
                 }
             });
 
@@ -137,6 +166,21 @@ namespace SqlPartial.Generator
             {
                 try
                 {
+                    // Report SQLPG003 (Missing Fallback)
+                    foreach (var group in batch.Groups)
+                    {
+                        var hasFallback = group.ContentByProviderName.ContainsKey(FilePathParser.FallbackProviderName);
+                        var providersCount = group.ContentByProviderName.Count(kvp => kvp.Key != FilePathParser.FallbackProviderName);
+                        var totalConfigured = batch.Config.DistinctProviderNames.Count();
+
+                        if (!hasFallback && providersCount < totalConfigured)
+                        {
+                            ReportDiagnostic(ctx, "SQLPG003", "Missing Fallback SQL", 
+                                $"Query '{group.QueryName}' in class '{group.ClassName}' is missing a fallback and does not cover all configured providers. Runtime may return empty strings.", 
+                                DiagnosticSeverity.Warning);
+                        }
+                    }
+
                     var source = SourceBuilder.BuildPartialClass(
                         batch.Namespace,
                         batch.ClassName,
@@ -150,17 +194,24 @@ namespace SqlPartial.Generator
                 }
                 catch (Exception ex)
                 {
-                    ReportError(ctx, "SQLGEN002", ex.Message);
+                    ReportDiagnostic(ctx, "SQLPG002", "Class Generation Failed", ex.Message, DiagnosticSeverity.Error);
                 }
             });
         }
 
-        private static void ReportError(SourceProductionContext ctx, string id, string message)
+        private static void ReportDiagnostic(SourceProductionContext ctx, string id, string title, string message, DiagnosticSeverity severity, string? filePath = null)
         {
             var descriptor = new DiagnosticDescriptor(
-                id, "SqlPartial Generator Error", message,
-                "SqlPartial", DiagnosticSeverity.Error, isEnabledByDefault: true);
-            ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location: null));
+                id, title, message,
+                "SqlPartial", severity, isEnabledByDefault: true);
+            
+            Location? location = null;
+            if (filePath != null)
+            {
+                location = Location.Create(filePath, new Microsoft.CodeAnalysis.Text.TextSpan(0, 0), new Microsoft.CodeAnalysis.Text.LinePositionSpan(new Microsoft.CodeAnalysis.Text.LinePosition(0, 0), new Microsoft.CodeAnalysis.Text.LinePosition(0, 0)));
+            }
+
+            ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location));
         }
 
         private static string GetHash(string input)
@@ -169,6 +220,13 @@ namespace SqlPartial.Generator
             uint hash = 2166136261;
             foreach (char c in input) hash = (hash ^ c) * 16777619;
             return hash.ToString("X8");
+        }
+
+        private sealed class SqlFileResult(string filePath, SqlFile? file, bool isUnrecognized)
+        {
+            public string FilePath { get; } = filePath;
+            public SqlFile? File { get; } = file;
+            public bool IsUnrecognized { get; } = isUnrecognized;
         }
     }
 }

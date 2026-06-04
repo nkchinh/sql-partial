@@ -63,12 +63,16 @@ namespace SqlPartial.Generator.Core
 
             // Full Constructor
             var providerNames = config.DistinctProviderNames.ToArray();
-            sb.Append("        public SqlStrings(string fallback");
+            sb.Append("        public SqlStrings(");
+            bool first = true;
             foreach (var providerName in providerNames)
             {
-                sb.Append($", {stringType} {providerName.ToLowerInvariant()} = null");
+                if (!first) sb.Append(", ");
+                sb.Append($"{stringType} {providerName.ToLowerInvariant()} = null");
+                first = false;
             }
-            sb.AppendLine(")");
+            if (!first) sb.Append(", ");
+            sb.AppendLine($"{stringType} fallback = null)");
             sb.AppendLine("        {");
             sb.AppendLine("            Fallback = fallback;");
             foreach (var providerName in providerNames)
@@ -81,9 +85,9 @@ namespace SqlPartial.Generator.Core
             // Manual Constructor (Fallback only) - Only if there are providers (to avoid CS0111)
             if (providerNames.Length > 0)
             {
-                sb.Append("        public SqlStrings(string fallback) : this(fallback");
-                foreach (var _ in providerNames) sb.Append(", null");
-                sb.AppendLine(") { }");
+                sb.Append("        public SqlStrings(string fallback) : this(");
+                for (int i = 0; i < providerNames.Length; i++) sb.Append("null, ");
+                sb.AppendLine("fallback) { }");
                 sb.AppendLine();
             }
 
@@ -131,14 +135,14 @@ namespace SqlPartial.Generator.Core
 
             // Constructor for factories
             sb.Append("        public SqlDynamic(");
-            bool first = true;
+            bool dynamicFirst = true;
             foreach (var providerName in config.DistinctProviderNames)
             {
-                if (!first) sb.Append(", ");
+                if (!dynamicFirst) sb.Append(", ");
                 sb.Append($"{funcType} {providerName.ToLowerInvariant()} = null");
-                first = false;
+                dynamicFirst = false;
             }
-            if (!first) sb.Append(", ");
+            if (!dynamicFirst) sb.Append(", ");
             sb.AppendLine($"{funcType} fallback = null)");
             sb.AppendLine("        {");
             sb.AppendLine("            _fallback = fallback;");
@@ -206,18 +210,21 @@ namespace SqlPartial.Generator.Core
             {
                 var fallbackContent = group.GetContent(FilePathParser.FallbackProviderName);
                 sb.AppendLine($"        private static readonly {stringsType} Sql{group.QueryName} = new {stringsType}(");
-                sb.Append($"            @\"{fallbackContent}\"");
 
+                bool first = true;
                 // Provider-specific — only emit when the file exists for that provider name
                 foreach (var providerName in config.DistinctProviderNames)
                 {
                     if (group.ContentByProviderName.TryGetValue(providerName, out var content))
                     {
-                        sb.AppendLine(",");
+                        if (!first) sb.AppendLine(",");
                         sb.Append($"            {providerName.ToLowerInvariant()}: @\"{content}\"");
+                        first = false;
                     }
                 }
 
+                if (!first) sb.AppendLine(",");
+                sb.Append($"            fallback: @\"{fallbackContent}\"");
                 sb.AppendLine(");");
                 sb.AppendLine();
             }

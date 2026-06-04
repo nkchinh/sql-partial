@@ -12,7 +12,8 @@ namespace SqlPartial.Generator.Models
         ImmutableArray<SqlProvider> providers,
         string sqlStringsNamespace,
         string? externalSqlStringsType,
-        bool nullableEnabled) : System.IEquatable<GeneratorConfig>
+        bool nullableEnabled,
+        bool warnOnUnrecognized = false) : System.IEquatable<GeneratorConfig>
     {
         public string RootNamespace { get; } = rootNamespace;
 
@@ -42,17 +43,20 @@ namespace SqlPartial.Generator.Models
 
         public bool NullableEnabled { get; } = nullableEnabled;
 
+        public bool WarnOnUnrecognized { get; } = warnOnUnrecognized;
+
         public bool Equals(GeneratorConfig? other) =>
             other is not null &&
             RootNamespace == other.RootNamespace &&
             SqlStringsNamespace == other.SqlStringsNamespace &&
             ExternalSqlStringsType == other.ExternalSqlStringsType &&
             NullableEnabled == other.NullableEnabled &&
+            WarnOnUnrecognized == other.WarnOnUnrecognized &&
             Providers.SequenceEqual(other.Providers);
 
         public override bool Equals(object? obj) => Equals(obj as GeneratorConfig);
 
         public override int GetHashCode() => HashCodeHelper.Combine(
-            RootNamespace, SqlStringsNamespace, ExternalSqlStringsType, NullableEnabled, Providers.Length);
+            RootNamespace, SqlStringsNamespace, ExternalSqlStringsType, NullableEnabled, Providers.Length, WarnOnUnrecognized);
     }
 }

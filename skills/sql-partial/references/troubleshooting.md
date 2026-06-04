@@ -31,5 +31,8 @@ The generator emits these codes during build:
 
 | Code | Severity | Meaning |
 | :--- | :--- | :--- |
-| `SQLGEN001` | Error | Failed to generate `SqlStrings` struct. Check your `SqlPartialProviders` syntax. |
-| `SQLGEN002` | Error | Failed to generate a partial class. Check if the class name contains illegal characters. |
+| `SQLPG001` | Error | Failed to generate `SqlStrings` struct. Check your `SqlPartialProviders` syntax. |
+| `SQLPG002` | Error | Failed to generate a partial class. Check if the class name contains illegal characters. |
+| `SQLPG003` | Warning | Missing Fallback SQL. Your query doesn't cover all DBMS providers and has no fallback. |
+| `SQLPG004` | Warning | Empty SQL content. The file was empty after stripping comments and test blocks. |
+| `SQLPG005` | Warning | Unrecognized extension. The file's extension isn't in `SqlPartialProviders`. (Enable via `SqlPartialWarnOnUnrecognized`) |

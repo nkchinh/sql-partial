@@ -11,6 +11,7 @@
         <CompilerVisibleProperty Include="SqlPartialProviders_Normalized" />
         <CompilerVisibleProperty Include="SqlPartialStringsNamespace" />
         <CompilerVisibleProperty Include="SqlPartialStringsType" />
+        <CompilerVisibleProperty Include="SqlPartialWarnOnUnrecognized" />
     </ItemGroup>
 
     <!-- Expose SourceItemType metadata so the generator can filter AdditionalFiles -->

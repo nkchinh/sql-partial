@@ -94,7 +94,7 @@ namespace SqlPartial.Tests
 
             Assert.DoesNotContain("#nullable", source);
             Assert.Contains("public string PostgreSql => _postgresql ?? Fallback;", source);
-            Assert.Contains("public SqlStrings(string fallback, string postgresql = null)", source);
+            Assert.Contains("public SqlStrings(string postgresql = null, string fallback = null)", source);
         }
 
         [Fact]
