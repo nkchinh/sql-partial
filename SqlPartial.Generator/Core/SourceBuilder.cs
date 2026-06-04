@@ -37,6 +37,14 @@ namespace SqlPartial.Generator.Core
             sb.AppendLine("        /// <summary>Fallback SQL — shared default.</summary>");
             sb.AppendLine("        string Fallback { get; }");
             sb.AppendLine();
+
+            foreach (var providerName in config.DistinctProviderNames)
+            {
+                sb.AppendLine($"        /// <summary>{providerName} specific SQL.</summary>");
+                sb.AppendLine($"        string {providerName} {{ get; }}");
+                sb.AppendLine();
+            }
+
             sb.AppendLine("        /// <summary>Returns the SQL for a given provider, falling back to Fallback.</summary>");
             sb.AppendLine("        string Get(string providerName);");
             sb.AppendLine("    }");

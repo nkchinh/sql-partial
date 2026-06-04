@@ -74,6 +74,7 @@ namespace SqlPartial.Tests
             var source = SourceBuilder.BuildSqlStringsStruct(config, true);
 
             Assert.Contains("public interface ISqlString", source);
+            Assert.Contains("string PostgreSql { get; }", source); // Added check
             Assert.Contains("public readonly struct SqlStrings : ISqlString", source);
             Assert.Contains("public static implicit operator SqlStrings(string fallback)", source);
             Assert.Contains("public readonly struct SqlDynamic : ISqlString", source);
