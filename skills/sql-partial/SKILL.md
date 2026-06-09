@@ -19,8 +19,10 @@ SqlPartial.Generator turns `.sql` files into strongly-typed C# constants. This s
 ## When to Use This Skill
 
 - **New Feature**: When adding a new database query.
+- **DBMS Abstraction**: When you want to use `[Sql]` on method parameters to automatically resolve the correct SQL string based on `SqlProviderName`.
 - **Multi-DBMS Transition**: When an existing single-database project needs to support additional providers (e.g., migrating from SQL Server to include PostgreSQL).
 - **Optimization**: When you want to use editor-only SQL (testing blocks) that shouldn't leak into C#.
+- **Sharing**: When you need to share SQL abstractions across multiple projects using `SqlPartialEmitSharedNamespace`.
 - **Standardization**: When checking if the project follows the `ClassName.QueryName.sql` convention.
 
 ---
@@ -33,9 +35,25 @@ Before touching any files, verify:
 - **Target Class**: Which `partial class` will hold the query?
 - **Current Setup**: Does `.csproj` have `SqlPartialProviders` and `AdditionalFiles` configured?
 
-### 2. The Abstraction Rule (ISqlString)
-Always leverage the `ISqlString` interface in your Data Access Layer. 
-- **Guidance**: Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`. 
+### 2. The Abstraction Rule (Zero-Boilerplate & ISqlString)
+Always leverage the provided abstraction mechanisms to handle DBMS-specific resolution. 
+
+**Option A: Zero-Boilerplate (Modern)**
+Use `[Sql]` (from `SqlPartial.Abstractions`) on `string` parameters. The generator handles the `.Get()` call for you. 
+- **Requirement**: The containing type must define a `string SqlProviderName` property.
+
+```csharp
+using SqlPartial.Abstractions;
+
+public partial class UserRepo {
+    public string SqlProviderName { get; set; } = "PostgreSql";
+
+    public void Execute([Sql] string query) => ...
+}
+```
+
+**Option B: Generic Execution (Manual)**
+Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`. 
 - **Benefit**: This allows the project to mix Auto (generated) and Manual (static/dynamic) SQL seamlessly with zero-allocation performance.
 
 ```csharp
@@ -49,11 +67,11 @@ public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString 
 | Pattern | Best For... | Implementation |
 | :--- | :--- | :--- |
 | **Auto** | Large, complex queries | Create `.sql` files; use generated `SqlStrings` |
-| **Manual Static** | Simple one-liners | Use inline string or `new SqlStrings("sql")` |
-| **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(fallback: () => ...)` |
+| **Manual Static** | Simple one-liners | Use `new SqlStrings(@default: "sql")` |
+| **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(@default: () => ...)` |
 
 ### 4. The Migration & Transition Rule (CRITICAL)
-If you are moving from a single DBMS (e.g., just fallback or just MS SQL) to supporting multiple:
+If you are moving from a single DBMS (e.g., just default) to supporting multiple:
 1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[extension]` (e.g., `.ms.sql`).
 2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `--#testpart` / `--/testpart` to `--#exclude` / `--/exclude`. 
     - *Why*: `#testpart` is deprecated. `#exclude` is the modern standard for SqlPartial.Generator.
@@ -96,8 +114,8 @@ SELECT * FROM Users WHERE Id = $1
 To keep your workflow efficient, consult these detailed guides when needed:
 
 - **[Configuration Guide](references/configuration.md)**: Deep dive into `.csproj` properties and advanced MSBuild setup.
-- **[Pattern Library](references/patterns.md)**: Examples of Fallback vs. Provider-specific SQL, and handling exclusion blocks.
-- **[Troubleshooting](references/troubleshooting.md)**: Common errors like `SQLPG001`, namespace mismatches, and trigger failures.
+- **[Pattern Library](references/patterns.md)**: Examples of Default vs. Provider-specific SQL, and handling exclusion blocks.
+- **[Troubleshooting](references/troubleshooting.md)**: Common errors like `SQLPG030` (missing property) and `SQLPG001`.
 
 ---
 
@@ -105,8 +123,8 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
 | Pattern | Role | Example |
 | :--- | :--- | :--- |
-| `Class.Query.sql` | **Shared Fallback** (Default) | `UserRepo.GetById.sql` |
-| `Class.Query.an.sql` | **Shared Fallback** (Explicit variant) | `UserRepo.GetById.an.sql` |
+| `Class.Query.sql` | **Default Fallback** | `UserRepo.GetById.sql` |
+| `Class.Query.an.sql` | **Default Fallback** (Explicit variant) | `UserRepo.GetById.an.sql` |
 | `Class.Query.pg.sql` | **PostgreSQL** specific override | `UserRepo.GetById.pg.sql` |
 | `Class.Query.pgsql` | **PostgreSQL** (Custom extension) | `UserRepo.GetById.pgsql` |
 | `Class.Query.ms.sql` | **SQL Server** specific override | `UserRepo.GetById.ms.sql` |
@@ -121,7 +139,8 @@ To keep your workflow efficient, consult these detailed guides when needed:
 ## Best Practices
 
 1.  **Doc comments are free**: Use `--` liberally. They are stripped during generation and won't affect binary size or performance.
-2.  **Exclusion blocks as Parameter Docs**: Use `--#exclude` blocks not just for test data, but to **document parameters** and their expected types/values for other developers.
+2.  **Implicit Conversion is REMOVED**: Always use `.Default` or `.Get()` when working with `SqlStrings` directly, or use `[Sql]` overloads.
+3.  **Exclusion blocks as Parameter Docs**: Use `--#exclude` blocks not just for test data, but to **document parameters** and their expected types/values for other developers.
     ```sql
     --#exclude
     DECLARE @Status INT = 1; -- 1: Active, 0: Deleted
@@ -130,7 +149,7 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
     SELECT * FROM Users WHERE Status = @Status LIMIT @Limit
     ```
-3.  **Namespace Alignment**: If the generator creates a property but C# can't find it, check if the `.sql` file is in a different folder than the `.cs` file.
+4.  **Namespace Alignment**: If the generator creates a property but C# can't find it, check if the `.sql` file is in a different folder than the `.cs` file.
 
 ---
 

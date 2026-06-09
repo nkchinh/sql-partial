@@ -25,6 +25,9 @@ SqlPartial.Generator/
 │   ├── SqlProvider.cs              A DBMS provider (extension + display name)
 │   ├── SqlFile.cs                  A parsed file with its associated provider
 │   └── SqlQueryGroup.cs            Group of SqlFiles with same (ns, className, queryName)
+├── Analyzers/
+│   ├── ManualInstantiationAnalyzer.cs  Validates 'new SqlStrings' coverage
+│   └── SqlMethodAnalyzer.cs            Validates [Sql] parameter usage (SQLPG030)
 └── build/ (implicit in NuGet)
     └── NkChinh.SqlPartial.Generator.targets   MSBuild targets packaged in NuGet
 ```
@@ -32,6 +35,10 @@ SqlPartial.Generator/
 ---
 
 ## Generator Pipeline
+
+The generator uses two distinct incremental pipelines:
+
+### 1. File-based Pipeline (Properties & SQL Files)
 
 ```
 AdditionalTextsProvider
@@ -57,6 +64,19 @@ AnalyzerConfigOptionsProvider
 GeneratorConfig → RegisterSourceOutput → SourceBuilder.BuildSqlStringsStruct()
 ```
 
+### 2. Semantic Pipeline (Attributes & Overloads)
+
+```
+SyntaxProvider.ForAttributeWithMetadataName("SqlPartial.Abstractions.SqlAttribute")
+    │ transform: ctx.TargetSymbol.ContainingSymbol as IMethodSymbol
+    ▼
+ImmutableArray<IMethodSymbol> ← Collect()
+    │ combine with GeneratorConfig
+    │ Group by ContainingType
+    ▼
+RegisterSourceOutput → SourceBuilder.BuildOverloads()
+```
+
 ### Why use `Collect()` twice?
 
 The first `Collect()` gathers all `SqlFile` objects so they can be grouped by query. Without this, each `SqlFile` would be processed independently, and it would be impossible to know which files belong to the same query.
@@ -80,10 +100,12 @@ Parsed from MSBuild global properties once. It remains stable between file edits
 | `SqlStringsNamespace` | `build_property.SqlPartialStringsNamespace` | Namespace for the `SqlStrings` struct |
 | `ExternalSqlStringsType` | `build_property.SqlPartialStringsType` | Use a struct from another assembly |
 | `NullableEnabled` | `build_property.Nullable` | Whether to emit `#nullable enable` |
+| `EmitSharedNamespace` | `build_property.SqlPartialEmitSharedNamespace` | Emit public shared types in this namespace |
+| `UseSharedNamespace` | `build_property.SqlPartialUseSharedNamespace` | Import shared types from this namespace |
 
 ### `SqlFile`
 
-Represents a parsed SQL file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. It stores the resolved `ProviderName` (e.g., `"PostgreSql"` or `"Fallback"`).
+Represents a parsed SQL file. It implements `IEquatable<SqlFile>` — mandatory for Roslyn incremental caching to work correctly. It stores the resolved `ProviderName` (e.g., `"PostgreSql"` or `"Default"`).
 
 ### `SqlQueryGroup`
 
@@ -92,8 +114,8 @@ Groups all `SqlFile` objects with the same `(Namespace, ClassName, QueryName)`. 
 `GetContent(providerName)` method:
 ```
 providerName exists in dict → returns content for that provider
-providerName not found      → falls back to "Fallback"
-"Fallback" missing           → returns string.Empty
+providerName not found      → falls back to "Default"
+"Default" missing           → returns string.Empty
 ```
 
 ---
@@ -120,28 +142,33 @@ Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects changes in tracked fi
 
 ## Code Generation — `SourceBuilder`
 
+### `SqlAttribute`
+
+Injected via `RegisterPostInitializationOutput` into the `SqlPartial.Abstractions` namespace. This ensures the attribute is always available for semantic analysis even before other code is generated. It is used to mark parameters for overload generation.
+
 ### `ISqlString` Interface
 
 Generated once per project. Provides a common contract for both static and dynamic SQL:
-- `Fallback { get; }`
+- `Default { get; }`
 - `Get(string providerName)`
 
 ### `SqlStrings` struct
 
-Generated once per project (unless `ExternalSqlStringsType` is set). The struct is `readonly` to ensure immutability and implements `ISqlString`.
+Generated once per project (unless `ExternalSqlStringsType` or `UseSharedNamespace` is set). The struct is `readonly` to ensure immutability and implements `ISqlString`.
 
 **Key Features**:
-- **Consistent Fallback**: DBMS-specific properties (e.g., `PostgreSql`) use private backing fields and expression-bodied getters that automatically return `Fallback` if the specific content is missing.
+- **Visibility**: `internal` by default, `public` if `EmitSharedNamespace` is set.
+- **Consistent Defaulting**: DBMS-specific properties (e.g., `PostgreSql`) use private backing fields and expression-bodied getters that automatically return `Default` if the specific content is missing.
 - **Deduplication**: If multiple extensions (e.g., `.pg.sql` and `.pgsql`) map to the same `PostgreSql` provider, the struct will only contain one `PostgreSql` property.
 - **Backward Compatibility**: The generator automatically detects the project's C# version. If C# < 8.0, it won't emit `#nullable` directives.
-- **Implicit Conversion**: Supports implicit cast to `string` (returns `Fallback`) and from `string` (creates a fallback-only `SqlStrings`).
+- **No Implicit Conversion**: Since Phase 1, implicit conversion to `string` is removed to avoid ambiguity with generated `[Sql]` overloads. Use `.Default` or `.Get()` explicitly.
 - **Manual Construction**: Users can manually create `SqlStrings` for ad-hoc static SQL.
 
 ### `SqlDynamic` struct
 
 Generated once per project. Implements `ISqlString` and allows for lazy-evaluated dynamic SQL using factories (`Func<string>`).
 
-- **Fully Factory-Based**: All properties, including `Fallback`, are evaluated via factories. This ensures consistency and allows the entire query to be dynamic.
+- **Fully Factory-Based**: All properties, including `Default`, are evaluated via factories. This ensures consistency and allows the entire query to be dynamic.
 - **Zero Caching**: Evaluates the factory every time a property is accessed. This keeps the struct extremely lightweight (no heap-allocated `Lazy<T>` objects) and ensures truly dynamic behavior (e.g., embedding timestamps).
 - **Generic Support**: Designed to be used as a generic constraint: `where TSql : struct, ISqlString`.
 
@@ -151,17 +178,21 @@ Each `(Namespace, ClassName)` generates a hint file `ClassName.{hash}.g.cs`. The
 
 Generated properties are `private static readonly` and prefixed with `Sql` (e.g., `SqlGetUser`).
 
+### Method Overloads
+
+When a method parameter is marked with `[Sql]`, the generator produces a generic overload in the same class (or an extension class for interfaces). This overload resolves the provider-specific string at runtime using the type's `SqlProviderName` property.
+
 ---
 
 ## Analyzers
 
 ### `ManualInstantiationAnalyzer` (`SQLPG012`)
 
-Detects when developers manually create `SqlStrings` or `SqlDynamic` with missing DBMS coverage and no fallback.
+Detects when developers manually create `SqlStrings` or `SqlDynamic` with missing DBMS coverage and no default value.
 
-- **Mechanism**: Intercepts `IObjectCreationOperation`.
-- **Logic**: Flags any instantiation where the `fallback` parameter is null/default AND at least one other provider parameter is null/default.
-- **De-coupling**: This analyzer does not need to parse MSBuild configuration because it uses the semantic information of the generated constructor.
+### `SqlMethodAnalyzer` (`SQLPG030`)
+
+Ensures that any type using the `[Sql]` attribute on method parameters also defines a `string SqlProviderName` property (static or instance) to allow runtime resolution.
 
 ### Technical Note: RS2008
 Release tracking for analyzers is currently disabled to simplify development. See `SqlPartial.Generator/Analyzers/ReleaseTracking/README.md` for more details and future implementation steps.
@@ -173,7 +204,7 @@ Release tracking for analyzers is currently disabled to simplify development. Se
 The parser uses a **longest-match-first** strategy against configured extensions to resolve the provider.
 
 1.  **Custom Extensions**: It checks if the filename ends with any extension configured in `SqlPartialProviders` (sorted by length descending to prevent partial matching).
-2.  **Fallback Mechanism**: If no match, it checks for hardcoded defaults: `.an.sql` and `.sql`, mapping them to `Fallback`.
+2.  **Default Mechanism**: If no match, it checks for hardcoded defaults: `.an.sql` and `.sql`, mapping them to `Default`.
 3.  **Decomposition**: The matched extension is stripped, and the remaining filename is split by `.` to extract `ClassName` and `QueryName`.
 
 **Example**: `UserRepo.GetUsers.pg.sql`

@@ -1,1 +1,1 @@
-SELECT Value FROM Settings WHERE Key = @Key;
+SELECT Value FROM Settings WHERE [Key] = @Key;

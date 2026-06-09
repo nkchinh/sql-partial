@@ -13,9 +13,9 @@ public class ManualInstantiationAnalyzer : DiagnosticAnalyzer
     public const string DiagnosticId = "SQLPG012";
     private const string Category = "Logic";
 
-    private static readonly LocalizableString Title = "Missing Fallback SQL in manual instantiation";
-    private static readonly LocalizableString MessageFormat = "Instantiation of '{0}' is missing a fallback and does not cover all configured providers. Runtime may return empty strings.";
-    private static readonly LocalizableString Description = "When manually instantiating SqlStrings or SqlDynamic, you should either provide a fallback value or provide SQL for all configured DBMS providers. If you miss both, the application may return empty SQL strings on unconfigured platforms.";
+    private static readonly LocalizableString Title = "Missing Default SQL in manual instantiation";
+    private static readonly LocalizableString MessageFormat = "Instantiation of '{0}' is missing a default value and does not cover all configured providers. Runtime may return empty strings.";
+    private static readonly LocalizableString Description = "When manually instantiating SqlStrings or SqlDynamic, you should either provide a default value or provide SQL for all configured DBMS providers. If you miss both, the application may return empty SQL strings on unconfigured platforms.";
 
     private static readonly DiagnosticDescriptor Rule = new(
         DiagnosticId,
@@ -55,12 +55,12 @@ public class ManualInstantiationAnalyzer : DiagnosticAnalyzer
         var arguments = objectCreation.Arguments;
         if (arguments.Length <= 1)
         {
-            // Likely the single-parameter fallback constructor or implicit conversion (which shows up as object creation sometimes)
-            // If it's the 1-param constructor, it IS the fallback.
+            // Likely the single-parameter default constructor or implicit conversion (which shows up as object creation sometimes)
+            // If it's the 1-param constructor, it IS the default.
             return;
         }
 
-        bool hasFallback = false;
+        bool hasDefault = false;
         bool missingAnyProvider = false;
 
         foreach (var argument in arguments)
@@ -73,11 +73,11 @@ public class ManualInstantiationAnalyzer : DiagnosticAnalyzer
                                       literal.ConstantValue.HasValue &&
                                       literal.ConstantValue.Value == null);
 
-            if (string.Equals(parameter.Name, "fallback", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(parameter.Name, "default", StringComparison.OrdinalIgnoreCase))
             {
                 if (!isEffectivelyNull)
                 {
-                    hasFallback = true;
+                    hasDefault = true;
                 }
             }
             else
@@ -91,7 +91,7 @@ public class ManualInstantiationAnalyzer : DiagnosticAnalyzer
         }
 
         // 3. Report if we have a gap
-        if (!hasFallback && missingAnyProvider)
+        if (!hasDefault && missingAnyProvider)
         {
             var diagnostic = Diagnostic.Create(Rule, objectCreation.Syntax.GetLocation(), type.Name);
             context.ReportDiagnostic(diagnostic);

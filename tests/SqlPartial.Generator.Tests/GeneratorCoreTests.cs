@@ -66,29 +66,55 @@ public class GeneratorCoreTests
         var config = new GeneratorConfig(
             "MyProject",
             [new SqlProvider(".pg.sql", "PostgreSql")],
-            ImmutableArray<string>.Empty,
+            [],
             "MyProject.Sql",
             null,
             true);
 
         var source = SourceBuilder.BuildSqlStringsStruct(config, true);
 
-        Assert.Contains("public interface ISqlString", source);
-        Assert.Contains("string PostgreSql { get; }", source); // Added check
-        Assert.Contains("public readonly struct SqlStrings : ISqlString", source);
-        Assert.Contains("public static implicit operator SqlStrings(string fallback)", source);
-        Assert.Contains("public readonly struct SqlDynamic : ISqlString", source);
+        Assert.Contains("internal interface ISqlString", source);
+        Assert.Contains("string PostgreSql { get; }", source);
+        Assert.Contains("internal readonly struct SqlStrings : ISqlString", source);
+        Assert.Contains("internal readonly struct SqlDynamic : ISqlString", source);
         Assert.Contains("private readonly System.Func<string>? _postgresqlFactory;", source);
-        Assert.Contains("public string PostgreSql => _postgresqlFactory?.Invoke() ?? Fallback;", source);
+        Assert.Contains("public string PostgreSql => _postgresqlFactory?.Invoke() ?? Default;", source);
+
+        // SqlAttribute is now separate
+        Assert.DoesNotContain("namespace SqlPartial", source);
+
+        var attrSource = SourceBuilder.BuildSqlAttribute();
+        Assert.Contains("namespace SqlPartial.Abstractions", attrSource);
+        Assert.Contains("sealed class SqlAttribute : System.Attribute { }", attrSource);
     }
 
     [Fact]
-    public void SourceBuilder_BuildSqlStringsStruct_ShouldNotEmitNullableOnOldCSharp()
+    public void SourceBuilder_BuildSqlStringsStruct_ShouldBePublicWhenEmittingSharedNamespace()
+    {
+        var config = new GeneratorConfig(
+            "MyProject",
+            [],
+            [],
+            "MyProject.Sql",
+            null,
+            true,
+            false,
+            "SharedSql");
+
+        var source = SourceBuilder.BuildSqlStringsStruct(config, true);
+
+        Assert.Contains("namespace SharedSql", source);
+        Assert.Contains("public interface ISqlString", source);
+        Assert.Contains("public readonly struct SqlStrings", source);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildSqlStringsStruct_ShouldNotEmitWhenUsingSharedNamespace()
     {
         var config = new GeneratorConfig(
             "MyProject",
             [new SqlProvider(".pg.sql", "PostgreSql")],
-            ImmutableArray<string>.Empty,
+            [],
             "MyProject.Sql",
             null,
             true);
@@ -96,8 +122,8 @@ public class GeneratorCoreTests
         var source = SourceBuilder.BuildSqlStringsStruct(config, false);
 
         Assert.DoesNotContain("#nullable", source);
-        Assert.Contains("public string PostgreSql => _postgresql ?? Fallback;", source);
-        Assert.Contains("public SqlStrings(string postgresql = null, string fallback = null)", source);
+        Assert.Contains("public string PostgreSql => _postgresql ?? Default;", source);
+        Assert.Contains("public SqlStrings(string postgresql = null, string @default = null)", source);
     }
 
     [Fact]
@@ -106,7 +132,7 @@ public class GeneratorCoreTests
         var config = new GeneratorConfig(
             "MyProject",
             [new SqlProvider(".pg.sql", "PostgreSql")],
-            ImmutableArray<string>.Empty,
+            [],
             "MyProject.Sql",
             null,
             false);
@@ -144,7 +170,7 @@ public class GeneratorCoreTests
         var config = new GeneratorConfig(
             "MyProject",
             [],
-            ImmutableArray<string>.Empty,
+            [],
             "MyProject.Sql",
             "Shared.SqlStrings",
             true);
@@ -211,7 +237,7 @@ public class GeneratorCoreTests
     }
 
     [Fact]
-    public void SqlQueryGroup_GetContent_ShouldReturnEmptyIfFallbackMissing()
+    public void SqlQueryGroup_GetContent_ShouldReturnEmptyIfDefaultMissing()
     {
         var contentByProvider = new Dictionary<string, string>
         {
@@ -223,8 +249,8 @@ public class GeneratorCoreTests
         // Existing provider
         Assert.Equal("SELECT PG;", group.GetContent("PostgreSql"));
 
-        // Missing provider AND missing fallback -> empty string
-        Assert.Equal(string.Empty, group.GetContent("Fallback"));
+        // Missing provider AND missing default -> empty string
+        Assert.Equal(string.Empty, group.GetContent(FilePathParser.FallbackProviderName));
         Assert.Equal(string.Empty, group.GetContent("Unknown"));
     }
 
@@ -237,7 +263,7 @@ public class GeneratorCoreTests
             new SqlProvider(".ms.sql", "SqlServer")
         );
 
-        var config = new GeneratorConfig("NS", providers, ImmutableArray<string>.Empty, "NS", null, true);
+        var config = new GeneratorConfig("NS", providers, [], "NS", null, true);
 
         var distinct = config.DistinctProviderNames.ToList();
         Assert.Equal(2, distinct.Count);
@@ -264,7 +290,7 @@ public class GeneratorCoreTests
     [Fact]
     public void FilePathParser_ShouldReturnNullOnInvalidFilename()
     {
-        var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj", ImmutableArray<SqlProvider>.Empty);
+        var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj", []);
         Assert.Null(result);
     }
 }
