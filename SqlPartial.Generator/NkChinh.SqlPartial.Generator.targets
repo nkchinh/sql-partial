@@ -3,6 +3,11 @@
         <SqlPartialProviders_Normalized>$(SqlPartialProviders.Replace(';', ','))</SqlPartialProviders_Normalized>
     </PropertyGroup>
 
+    <!-- Define a compilation symbol so the generator can conditionally emit [Sql] in PostInitialization -->
+    <PropertyGroup Condition="'$(SqlPartialUseSharedNamespace)' != ''">
+        <DefineConstants>$(DefineConstants);SQLPARTIAL_USE_SHARED_NAMESPACE</DefineConstants>
+    </PropertyGroup>
+
     <!-- Expose MSBuild properties to the generator via analyzer config -->
     <ItemGroup>
         <CompilerVisibleProperty Include="RootNamespace" />

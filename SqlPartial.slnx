@@ -1,4 +1,9 @@
 <Solution>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/SqlPartial.Integration.Shared/">
+    <Project Path="tests/SqlPartial.Integration.Shared/Abstractions/Abstractions.csproj" />
+    <Project Path="tests/SqlPartial.Integration.Shared/Consumer/Consumer.csproj" />
+  </Folder>
   <Project Path="SqlPartial.Generator/SqlPartial.Generator.csproj" />
   <Project Path="tests/SqlPartial.Generator.Tests/SqlPartial.Generator.Tests.csproj" />
   <Project Path="tests/SqlPartial.Integration.MultiDbms/SqlPartial.Integration.MultiDbms.csproj" />

@@ -59,7 +59,7 @@ internal static class FilePathParser
         var baseName = filename.Substring(0, filename.Length - matchedExtension.Length);
         var segments = baseName.Split('.');
 
-        if (segments.Length < 2) return null;
+        if (segments.Length != 2) return null;
 
         var className = segments[0];
         var queryName = segments[1];

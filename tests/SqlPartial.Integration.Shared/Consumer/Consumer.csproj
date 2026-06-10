@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SqlPartial.Integration.Shared.Consumer</RootNamespace>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <SqlPartialUseSharedNamespace>SqlPartial.Shared</SqlPartialUseSharedNamespace>
+    <SqlPartialProviders>.pg.sql:PostgreSql;.ms.sql:SqlServer</SqlPartialProviders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Abstractions\Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\SqlPartial.Generator\SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="**/*.sql">
+      <SourceItemType>SqlPartial</SourceItemType>
+    </AdditionalFiles>
+  </ItemGroup>
+
+  <Import Project="..\..\..\SqlPartial.Generator\NkChinh.SqlPartial.Generator.targets" />
+
+</Project>

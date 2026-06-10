@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <SqlPartialEmitSharedNamespace>SqlPartial.Shared</SqlPartialEmitSharedNamespace>
+    <SqlPartialProviders>.pgsql:PostgreSql;.pg.sql:PostgreSql;.ms.sql:SqlServer</SqlPartialProviders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SqlPartial.Generator\SqlPartial.Generator.csproj" OutputItemType="Analyzer" />
+  </ItemGroup>
+
+  <Import Project="..\..\..\SqlPartial.Generator\NkChinh.SqlPartial.Generator.targets" />
+
+</Project>
