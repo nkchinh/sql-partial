@@ -124,14 +124,13 @@ To keep your workflow efficient, consult these detailed guides when needed:
 | Pattern | Role | Example |
 | :--- | :--- | :--- |
 | `Class.Query.sql` | **Default Fallback** | `UserRepo.GetById.sql` |
-| `Class.Query.an.sql` | **Default Fallback** (Explicit variant) | `UserRepo.GetById.an.sql` |
 | `Class.Query.pg.sql` | **PostgreSQL** specific override | `UserRepo.GetById.pg.sql` |
 | `Class.Query.pgsql` | **PostgreSQL** (Custom extension) | `UserRepo.GetById.pgsql` |
 | `Class.Query.ms.sql` | **SQL Server** specific override | `UserRepo.GetById.ms.sql` |
 | `Class.Query.lt.sql` | **SQLite** specific override | `UserRepo.GetById.lt.sql` |
 
 *Note:*
-- *`.sql` and `.an.sql` are functionally identical and both serve as the global fallback.*
+- *`.sql` serves as the global fallback.*
 - *Extensions are user-defined in `.csproj`. Standard suggestions: `.pg.sql`, `.pgsql`, `.ms.sql`, `.my.sql`, `.ora.sql`, `.lt.sql`.*
 
 ---

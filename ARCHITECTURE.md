@@ -204,7 +204,7 @@ Release tracking for analyzers is currently disabled to simplify development. Se
 The parser uses a **longest-match-first** strategy against configured extensions to resolve the provider.
 
 1.  **Custom Extensions**: It checks if the filename ends with any extension configured in `SqlPartialProviders` (sorted by length descending to prevent partial matching).
-2.  **Default Mechanism**: If no match, it checks for hardcoded defaults: `.an.sql` and `.sql`, mapping them to `Default`.
+2.  **Default Mechanism**: If no match, it checks for the hardcoded default: `.sql`, mapping it to `Default`.
 3.  **Decomposition**: The matched extension is stripped, and the remaining filename is split by `.` to extract `ClassName` and `QueryName`.
 
 **Example**: `UserRepo.GetUsers.pg.sql`

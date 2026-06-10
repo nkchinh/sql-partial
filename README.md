@@ -135,7 +135,6 @@ The namespace is derived automatically from `$(RootNamespace)` + the relative di
 
 ```
 ClassName.QueryName.sql          Default fallback (ANSI SQL recommended)
-ClassName.QueryName.an.sql       Same as above — explicit variant
 ClassName.QueryName.pg.sql       PostgreSQL-specific
 ClassName.QueryName.pgsql        Also PostgreSQL (if configured)
 ClassName.QueryName.ms.sql       SQL Server-specific
@@ -143,7 +142,7 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 - **ClassName** — must match the `partial class` name exactly.
 - **QueryName** — becomes the property name on the class (prefixed with `Sql`).
-- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql`/`.an.sql` for the default.
+- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql` for the default.
 
 ---
 

@@ -8,13 +8,13 @@ namespace SqlPartial.Generator.Core;
 internal static class FilePathParser
 {
     public const string FallbackProviderName = "Fallback";
-    private static readonly string[] DefaultFallbackExtensions = [".an.sql", ".sql"];
+    private static readonly string[] DefaultFallbackExtensions = [".sql"];
 
     /// <summary>
     /// Parses a SQL file path into (namespace, className, queryName, providerName).
     ///
     /// Matching Logic:
-    ///   1. Combine configured extensions with hardcoded fallback defaults (.an.sql, .sql).
+    ///   1. Combine configured extensions with hardcoded fallback defaults (.sql).
     ///   2. Sort by length descending to ensure the longest extension matches first.
     ///   3. Strip the matched extension and split remaining filename into ClassName.QueryName.
     /// </summary>
@@ -28,7 +28,6 @@ internal static class FilePathParser
         // Fallback defaults are added FIRST to ensure they win in case of duplicate extensions
         var allPossibleProviders = new System.Collections.Generic.List<SqlProvider>
         {
-            new(".an.sql", FallbackProviderName),
             new(".sql", FallbackProviderName)
         };
         allPossibleProviders.AddRange(providers);
