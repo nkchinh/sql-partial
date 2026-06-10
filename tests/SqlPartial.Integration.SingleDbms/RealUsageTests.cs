@@ -5,17 +5,13 @@ namespace SqlPartial.Integration.SingleDbms;
 public partial class RealUsageTests
 {
     [Fact]
-    public void RealUsageTests_SingleDbms_ShouldImplicitlyConvertToFallback()
+    public void RealUsageTests_SingleDbms_ShouldImplicitlyConvertToDefault()
     {
         // GetSettings only has fallback version
-        var sql = SqlGetSettings;
-        var expected = "SELECT Value FROM Settings WHERE Key = @Key;";
+        var sql = RealUsageTests.SqlGetSettings;
 
-        Assert.Equal(expected, sql.Fallback);
-
-        // Implicit conversion
-        string query = sql;
-        Assert.Equal(expected, query);
+        var expected = "SELECT Value FROM Settings WHERE [Key] = @Key;";
+        Assert.Equal(expected, sql.Default);
 
         // Get unknown provider returns fallback
         Assert.Equal(expected, sql.Get("PostgreSql"));

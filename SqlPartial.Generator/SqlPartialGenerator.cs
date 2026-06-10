@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SqlPartial.Generator.Core;
 using SqlPartial.Generator.Models;
@@ -14,9 +15,17 @@ namespace SqlPartial.Generator;
 public class SqlPartialGenerator : IIncrementalGenerator
 {
     private const string SqlStringsHintName = "SqlStrings.g.cs";
+    private const string SqlAttributeHintName = "SqlAttribute.g.cs";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // ── Post Initialization (SqlAttribute) ───────────────────────────
+        context.RegisterPostInitializationOutput(static ctx =>
+        {
+            var source = SourceBuilder.BuildSqlAttribute();
+            ctx.AddSource(SqlAttributeHintName, SourceText.From(source, Encoding.UTF8));
+        });
+
         // ── Config (project-level, stable across file edits) ────────────
         var config = context.AnalyzerConfigOptionsProvider
             .Select(static (options, _) => ConfigParser.Parse(options));
@@ -161,6 +170,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
         {
             var (cfg, nullableSupport) = tuple;
             if (cfg.ExternalSqlStringsType is not null) return;
+
             try
             {
                 var source = SourceBuilder.BuildSqlStringsStruct(cfg, nullableSupport);
@@ -208,9 +218,63 @@ public class SqlPartialGenerator : IIncrementalGenerator
                 ReportDiagnostic(ctx, "SQLPG003", "Class Generation Failed", ex.Message, DiagnosticSeverity.Error);
             }
         });
+
+        // ── Emit Overloads for [Sql] parameters ──────────────────────────
+        var methodDeclarations = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                "SqlPartial.Abstractions.SqlAttribute",
+                predicate: static (s, _) => s is ParameterSyntax,
+                transform: static (ctx, _) => ctx.TargetSymbol.ContainingSymbol as IMethodSymbol)
+            .Where(static m => m is not null)
+            .Select(static (m, _) => m!)
+            .Collect();
+
+        context.RegisterSourceOutput(methodDeclarations.Combine(config.Combine(supportsNullable)), static (ctx, tuple) =>
+        {
+            var (methods, (cfg, nullableSupport)) = tuple;
+            if (methods.IsDefaultOrEmpty) return;
+
+            var methodsByType = methods
+                .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)
+                .GroupBy(m => m.ContainingType, SymbolEqualityComparer.Default);
+
+            foreach (var group in methodsByType)
+            {
+                var type = (ITypeSymbol)group.Key!;
+                var ns = type.ContainingNamespace?.ToDisplayString() ?? "Generated";
+
+                // Final safety check: does it have SqlProviderName?
+                // (Already checked by Analyzer, but good to be safe for generation)
+                bool hasProviderName = type.GetMembers("SqlProviderName")
+                    .OfType<IPropertySymbol>()
+                    .Any(p => p.Type.SpecialType == SpecialType.System_String);
+
+                // Check interfaces if not in class
+                if (!hasProviderName)
+                {
+                    hasProviderName = type.AllInterfaces.Any(i => i.GetMembers("SqlProviderName")
+                        .OfType<IPropertySymbol>()
+                        .Any(p => p.Type.SpecialType == SpecialType.System_String));
+                }
+
+                if (!hasProviderName) continue;
+
+                try
+                {
+                    var source = SourceBuilder.BuildOverloads(ns, type, group.ToList(), cfg, nullableSupport);
+                    var hash = GetHash($"{ns}.{type.Name}.Overloads");
+                    ctx.AddSource($"{type.Name}.{hash}.Overloads.g.cs", SourceText.From(source, Encoding.UTF8));
+                }
+                catch (Exception ex)
+                {
+                    ReportDiagnostic(ctx, "SQLPG004", "Overload Generation Failed", ex.Message, DiagnosticSeverity.Error);
+                }
+            }
+        });
     }
 
-    private static void ReportDiagnostic(SourceProductionContext ctx, string id, string title, string message, DiagnosticSeverity severity, string? filePath = null)
+    private static void ReportDiagnostic(
+        SourceProductionContext ctx, string id, string title, string message, DiagnosticSeverity severity, string? filePath = null)
     {
         var descriptor = new DiagnosticDescriptor(
             id, title, message,
@@ -219,7 +283,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
         Location? location = null;
         if (filePath != null)
         {
-            location = Location.Create(filePath, new Microsoft.CodeAnalysis.Text.TextSpan(0, 0), new Microsoft.CodeAnalysis.Text.LinePositionSpan(new Microsoft.CodeAnalysis.Text.LinePosition(0, 0), new Microsoft.CodeAnalysis.Text.LinePosition(0, 0)));
+            location = Location.Create(
+                filePath, new TextSpan(0, 0), new LinePositionSpan(new LinePosition(0, 0), new LinePosition(0, 0)));
         }
 
         ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location));

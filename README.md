@@ -1,6 +1,6 @@
 # SqlPartial.Generator
 
-Modern Roslyn source generator that turns `.sql` files into strongly-typed, DBMS-aware C# constants — with full IntelliSense and automatic generation on save.
+Modern Roslyn source generator that turns `.sql` files into strongly-typed, DBMS-aware C# constants — with full IntelliSense, zero-boilerplate overloads, and automatic generation on save.
 
 ## Why SqlPartial?
 
@@ -14,12 +14,13 @@ Writing SQL as string literals inside C# is a painful experience:
 
 ## How it works
 
-Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to the fallback SQL automatically.
+### 1. Simple Property Generation
+Each `.sql` file becomes a `static readonly SqlStrings` property prefixed with `Sql` on a `partial class`. At runtime, call `Get("PostgreSql")` to receive the provider-specific SQL, falling back to the default SQL automatically.
 
 ```
 UserRepo.GetActive.ms.sql     → SQL Server version
 UserRepo.GetActive.pg.sql     → PostgreSQL version
-UserRepo.GetActive.sql        → (Optional) Shared fallback
+UserRepo.GetActive.sql        → (Optional) Default fallback
 ```
 
 Generated output:
@@ -28,22 +29,35 @@ Generated output:
 partial class UserRepo
 {
     private static readonly SqlStrings SqlGetActive = new SqlStrings(
-        // From UserRepo.GetActive.sql
-        fallback:   @"SELECT * FROM Users WHERE IsActive = 1",
         postgresql: @"SELECT * FROM Users WHERE IsActive = true",
-        sqlserver:  @"SELECT * FROM Users WHERE IsActive = 1"
+        sqlserver:  @"SELECT * FROM Users WHERE IsActive = 1",
+        @default:   @"SELECT * FROM Users WHERE IsActive = 1"
     );
 }
 ```
 
-Runtime usage:
+### 2. Zero-Boilerplate Parameter Injection
+Use the `[Sql]` attribute from `SqlPartial.Abstractions` to automatically resolve the correct SQL string based on the current DBMS.
 
 ```csharp
-// providerName comes from appsettings, e.g. "PostgreSql"
-string sql = UserRepo.SqlGetActive.Get(providerName);
+using SqlPartial.Abstractions;
 
-// For single-DBMS projects, use implicit conversion (returns fallback)
-string sqlSimple = UserRepo.SqlGetActive;
+public partial class UserRepo
+{
+    // You must define this property (static or instance)
+    public string SqlProviderName { get; set; } = "PostgreSql";
+
+    // Mark parameter with [Sql]
+    public Task<IEnumerable<User>> Execute([Sql] string query)
+    {
+         // The generator handles the .Get(SqlProviderName) call for you
+         return connection.QueryAsync<User>(query);
+    }
+}
+
+// USAGE: The generator creates a generic overload automatically!
+var users = await repo.Execute(UserRepo.SqlGetActive); 
+// At runtime, 'query' becomes the PostgreSql string.
 ```
 
 ---
@@ -68,7 +82,7 @@ npx skills add nkchinh/sql-partial --skill sql-partial
 
 ### 1. Configure DBMS providers
 
-Add to your `.csproj`. A fallback is always available — only declare additional providers for multi-DBMS support.
+Add to your `.csproj`. A default is always available — only declare additional providers for multi-DBMS support.
 
 **SqlPartial is DBMS-agnostic.** You can define any provider by choosing an **extension** (matched at the end of the filename) and a **Display Name** (used in C# code and `Get()` calls). Multiple extensions can map to the same DBMS.
 
@@ -120,15 +134,15 @@ The namespace is derived automatically from `$(RootNamespace)` + the relative di
 ## File naming convention
 
 ```
-ClassName.QueryName.sql          Shared fallback (ANSI SQL recommended)
-ClassName.QueryName.an.sql       Same as above — explicit fallback variant
+ClassName.QueryName.sql          Default fallback (ANSI SQL recommended)
 ClassName.QueryName.pg.sql       PostgreSQL-specific
 ClassName.QueryName.pgsql        Also PostgreSQL (if configured)
 ClassName.QueryName.ms.sql       SQL Server-specific
+```
 
 - **ClassName** — must match the `partial class` name exactly.
 - **QueryName** — becomes the property name on the class (prefixed with `Sql`).
-- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql`/`.an.sql` for the fallback.
+- **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql` for the default.
 
 ---
 
@@ -138,7 +152,7 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 Use `--#exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
 
-**File: `ProductRepo.GetById.sql`** (Shared fallback SQL)
+**File: `ProductRepo.GetById.sql`** (Shared default SQL)
 ```sql
 --#exclude
 -- Parameters for local testing & documentation
@@ -150,11 +164,9 @@ FROM Products p
 WHERE p.Id = @Id
 ```
 
-```
-
 ### 2. Handling Multi-DBMS Transitions
 
-If your original query was written for a specific DBMS (e.g., SQL Server), **rename it** when adding support for a second one. This prevents your "generic fallback" from containing incompatible syntax.
+If your original query was written for a specific DBMS (e.g., SQL Server), **rename it** when adding support for a second one. This prevents your "generic default" from containing incompatible syntax.
 
 **File: `ProductRepo.Search.ms.sql`** (SQL Server version)
 ```sql
@@ -188,34 +200,28 @@ Lines beginning with `--` are removed from the generated constant, so you can an
 
 ```sql
 -- Returns a single user by primary key
-SELECT id, name, email FROM users WHERE id = @id
+SELECT id, name, email FROM users WHERE id = @Id
 ```
 
 ---
 
 ## Advanced Configuration
 
-### Sharing `SqlStrings` across projects
+### Sharing types across projects (Recommended)
 
-By default the `SqlStrings` struct is generated in each project. If you want to share the same struct:
+To avoid duplicating core types and enable cross-project attribute sharing, use the Shared Namespace model:
 
-**Core project** — normal setup, struct is generated here.
-
-**Consumer project** — add this property to skip struct generation:
-
+**Abstractions project:**
 ```xml
 <PropertyGroup>
-    <SqlPartialStringsType>MyCompany.Core.SqlStrings</SqlPartialStringsType>
+    <SqlPartialEmitSharedNamespace>MyCompany.Data.Abstractions</SqlPartialEmitSharedNamespace>
 </PropertyGroup>
 ```
 
-### Controlling the namespace of `SqlStrings`
-
-By default the struct is placed in `$(RootNamespace)`. To override:
-
+**Implementation project:**
 ```xml
 <PropertyGroup>
-    <SqlPartialStringsNamespace>MyCompany.Data.Sql</SqlPartialStringsNamespace>
+    <SqlPartialUseSharedNamespace>MyCompany.Data.Abstractions</SqlPartialUseSharedNamespace>
 </PropertyGroup>
 ```
 
@@ -224,6 +230,8 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 | Property | Required | Default | Description |
 |---|---|---|---|
 | `SqlPartialProviders` | No | _(none)_ | Semicolon-separated `extension:DisplayName` pairs |
+| `SqlPartialEmitSharedNamespace` | No | _(none)_ | Emit public shared types in this namespace |
+| `SqlPartialUseSharedNamespace` | No | _(none)_ | Import shared types from this namespace |
 | `SqlPartialStringsNamespace` | No | `$(RootNamespace)` | Namespace for the generated `SqlStrings` struct |
 | `SqlPartialStringsType` | No | _(none)_ | Fully-qualified type to use instead of generating `SqlStrings` |
 | `SqlPartialWarnOnUnrecognized` | No | `false` | If `true`, emits `SQLPG020` for unknown extensions |
@@ -237,9 +245,10 @@ By default the struct is placed in `$(RootNamespace)`. To override:
 | `SQLPG001` | **Error** | Config | Invalid `SqlPartialProviders` syntax. Format must be `ext:Name`. |
 | `SQLPG002` | **Error** | Tooling | Internal failure generating `SqlStrings` struct. |
 | `SQLPG003` | **Error** | Tooling | Internal failure generating partial class file. |
-| `SQLPG010` | Warning | Logic | Missing Fallback SQL & incomplete DBMS coverage. |
+| `SQLPG030` | **Error** | Design | Missing `SqlProviderName` property when using `[Sql]`. |
+| `SQLPG010` | Warning | Logic | Missing Default SQL & incomplete DBMS coverage. |
 | `SQLPG011` | Warning | Quality | SQL file is empty after cleaning comments/excludes. |
-| `SQLPG012` | Warning | Logic | Missing Fallback SQL in manual instantiation (`new SqlStrings`). |
+| `SQLPG012` | Warning | Logic | Missing Default SQL in manual instantiation (`new SqlStrings`). |
 | `SQLPG020` | Warning | Usage | Unrecognized extension (Disabled by default). |
 
 ---
@@ -258,16 +267,13 @@ await QueryAsync(SqlGetActiveUsers);
 
 ### 2. Manual Static (Inline strings)
 Best for simple one-liners where a separate file would be overkill.
-- **Consumption:** Pass strings directly (via implicit conversion) or use the `SqlStrings` constructor for multiple providers.
+- **Consumption:** Use `.Default` or `.Get()` or `[Sql]` overloads. **Implicit conversion to string is removed.**
 ```csharp
-// Simple fallback-only
-await QueryAsync("SELECT * FROM Version");
-
-// Multi-DBMS without a file (PostgreSQL, SQL Server, and SQLite)
+// Manual Multi-DBMS in code
 await QueryAsync(new SqlStrings(
     postgresql: "SELECT name FROM users LIMIT 10",
     sqlserver:  "SELECT TOP 10 name FROM users",
-    fallback:   "SELECT name FROM users" // Fallback for SQLite and others
+    @default:   "SELECT name FROM users"
 ));
 ```
 
@@ -276,9 +282,9 @@ Best for SQL that needs runtime calculations (table partitioning, dynamic filter
 - **Consumption:** Use `SqlDynamic` with factories (`Func<string>`).
 ```csharp
 var dynamicQuery = new SqlDynamic(
-    postgresql: () => $"SELECT * FROM sales_{DateTime.Now:yyyy}",
-    sqlserver:  () => $"SELECT * FROM sales_{DateTime.Now:yyyy}",
-    fallback: () => "SELECT * FROM sales"
+    postgresql: () => $"SELECT * FROM sales_{DateTime.Now:yyyyMM}",
+    sqlserver:  () => $"SELECT * FROM sales_{DateTime.Now:yyyyMM}",
+    @default: () => "SELECT * FROM sales"
 );
 await QueryAsync(dynamicQuery);
 ```
@@ -302,4 +308,4 @@ public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString
 
 ## License
 
-This project is licensed under the MIT License.
+MIT

@@ -10,32 +10,32 @@ namespace SqlPartial.Generator.Tests;
 public class ManualInstantiationAnalyzerTests
 {
     [Fact]
-    public async Task Analyzer_ShouldWarnOnMissingFallbackAndMissingProvider()
+    public async Task Analyzer_ShouldWarnOnMissingDefaultAndMissingProvider()
     {
         var source = @"
 using System;
 namespace TestNamespace
 {
-    public interface ISqlString { string Fallback { get; } string Get(string p); }
+    public interface ISqlString { string Default { get; } string Get(string p); }
 
     public struct SqlStrings : ISqlString
     {
-        public string Fallback => _fallback ?? """";
-        private readonly string _fallback;
+        public string Default => _default ?? """";
+        private readonly string _default;
         private readonly string _pg;
         private readonly string _ms;
-        public SqlStrings(string pg = null, string ms = null, string fallback = null) 
-        { 
-            _pg = pg; _ms = ms; _fallback = fallback; 
+        public SqlStrings(string pg = null, string ms = null, string @default = null)
+        {
+            _pg = pg; _ms = ms; _default = @default;
         }
-        public string Get(string p) => Fallback;
+        public string Get(string p) => Default;
     }
 
     public class Usage
     {
         public void M()
         {
-            var s = new SqlStrings(pg: ""SELECT 1""); // Missing 'ms' and 'fallback'
+            var s = new SqlStrings(pg: ""SELECT 1""); // Missing 'ms' and 'default'
         }
     }
 }";
@@ -47,26 +47,26 @@ namespace TestNamespace
     }
 
     [Fact]
-    public async Task Analyzer_ShouldNotWarnWhenFallbackIsProvided()
+    public async Task Analyzer_ShouldNotWarnWhenDefaultIsProvided()
     {
         var source = @"
 using System;
 namespace TestNamespace
 {
-    public interface ISqlString { string Fallback { get; } string Get(string p); }
+    public interface ISqlString { string Default { get; } string Get(string p); }
     public struct SqlStrings : ISqlString
     {
-        public string Fallback => """";
-        public SqlStrings(string pg = null, string fallback = null) { }
-        public string Get(string p) => Fallback;
+        public string Default => """";
+        public SqlStrings(string pg = null, string @default = null) { }
+        public string Get(string p) => Default;
     }
 
     public class Usage
     {
         public void M()
         {
-            var s = new SqlStrings(pg: ""SELECT 1"", fallback: ""SELECT 2"");
-            var s2 = new SqlStrings(fallback: ""SELECT 3"");
+            var s = new SqlStrings(pg: ""SELECT 1"", @default: ""SELECT 2"");
+            var s2 = new SqlStrings(@default: ""SELECT 3"");
         }
     }
 }";
@@ -81,19 +81,19 @@ namespace TestNamespace
 using System;
 namespace TestNamespace
 {
-    public interface ISqlString { string Fallback { get; } string Get(string p); }
+    public interface ISqlString { string Default { get; } string Get(string p); }
     public struct SqlStrings : ISqlString
     {
-        public string Fallback => """";
-        public SqlStrings(string pg = null, string ms = null, string fallback = null) { }
-        public string Get(string p) => Fallback;
+        public string Default => """";
+        public SqlStrings(string pg = null, string ms = null, string @default = null) { }
+        public string Get(string p) => Default;
     }
 
     public class Usage
     {
         public void M()
         {
-            // All providers (pg, ms) are covered, even without fallback
+            // All providers (pg, ms) are covered, even without default
             var s = new SqlStrings(pg: ""SELECT 1"", ms: ""SELECT 2"");
         }
     }
@@ -109,19 +109,19 @@ namespace TestNamespace
 using System;
 namespace TestNamespace
 {
-    public interface ISqlString { string Fallback { get; } string Get(string p); }
+    public interface ISqlString { string Default { get; } string Get(string p); }
     public struct SqlDynamic : ISqlString
     {
-        public string Fallback => """";
-        public SqlDynamic(Func<string> pg = null, Func<string> ms = null, Func<string> fallback = null) { }
-        public string Get(string p) => Fallback;
+        public string Default => """";
+        public SqlDynamic(Func<string> pg = null, Func<string> ms = null, Func<string> @default = null) { }
+        public string Get(string p) => Default;
     }
 
     public class Usage
     {
         public void M()
         {
-            var s = new SqlDynamic(pg: () => ""SELECT 1""); // Missing ms and fallback
+            var s = new SqlDynamic(pg: () => ""SELECT 1""); // Missing ms and default
         }
     }
 }";
@@ -148,7 +148,7 @@ namespace TestNamespace
             .AddSyntaxTrees(syntaxTree);
 
         var analyzer = new ManualInstantiationAnalyzer();
-        var compilationWithAnalyzers = compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(analyzer));
+        var compilationWithAnalyzers = compilation.WithAnalyzers([analyzer]);
         return await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
     }
 }

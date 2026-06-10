@@ -2,16 +2,43 @@
 
 This guide provides examples of how to write SQL for various scenarios, focusing on the transition between single-DBMS and multi-DBMS support.
 
-## 1. Single-DBMS to Multi-DBMS Transition
+## 1. Zero-Boilerplate Abstraction with `[Sql]`
+
+Instead of manually calling `.Get()` or `.Default`, use the `[Sql]` attribute from `SqlPartial.Abstractions` to handle DBMS resolution automatically.
+
+**C# Repository:**
+```csharp
+using SqlPartial.Abstractions;
+
+public partial class ProductRepo {
+    // Required for [Sql] resolution (static or instance)
+    public string SqlProviderName => "PostgreSql"; 
+
+    public Task<Product> GetById([Sql] string query, int id) {
+        // At runtime, 'query' is resolved to the correct DBMS string
+        return connection.QuerySingleAsync<Product>(query, new { id });
+    }
+}
+```
+
+**Usage:**
+```csharp
+// The compiler selects the generated generic overload
+var product = await repo.GetById(ProductRepo.SqlGetById, 123);
+```
+
+---
+
+## 2. Single-DBMS to Multi-DBMS Transition
 
 ### Scenario: You have a SQL Server query and want to add PostgreSQL support.
 
 **Original File: `UserRepo.GetActive.sql`** (Contains T-SQL)
 ```sql
 -- Get active users
--- #testpart
+--#testpart
 DECLARE @MinScore INT = 100;
--- /testpart
+--/testpart
 SELECT * FROM Users WHERE IsActive = 1 AND Score >= @MinScore
 ```
 
@@ -34,17 +61,17 @@ Create `UserRepo.GetActive.pg.sql`:
 -- UserRepo.GetActive.pg.sql
 -- Get active users
 --#exclude
-DECLARE @MinScore INT = 100;
+DECLARE @MinScore INT = 100; -- Preserved for testing
 --/exclude
 SELECT * FROM Users WHERE IsActive = true AND Score >= :MinScore
 ```
 
-**Step 4: Create Fallback (Optional but recommended)**
+**Step 4: Create Default Fallback (Recommended)**
 Create `UserRepo.GetActive.sql` with generic SQL.
 
 ---
 
-## 2. Using Exclusion Blocks
+## 3. Using Exclusion Blocks
 
 Exclusion blocks allow you to keep "Playground" code in your SQL file.
 
@@ -64,7 +91,7 @@ DROP TABLE #TempUsers;
 
 ---
 
-## 3. Common DBMS Syntax Differences
+## 4. Common DBMS Syntax Differences
 
 When creating overrides, watch for:
 
@@ -72,32 +99,30 @@ When creating overrides, watch for:
 | :--- | :--- | :--- |
 | **Parameters** | `@param` | `:param` or `$1` |
 | **Booleans** | `1` / `0` | `true` / `false` |
-| **String Concatenation** | `+` | `\|\|` |
+| **String Concatenation** | `+` | `||` |
 | **Top/Limit** | `SELECT TOP 10 ...` | `SELECT ... LIMIT 10` |
 | **Identity** | `SCOPE_IDENTITY()` | `RETURNING id` |
 
 ---
 
-## 4. Usage Patterns (Unified by ISqlString)
+## 5. Usage Patterns (Unified by ISqlString)
 
 ### Auto (File-based)
 Best for large queries.
 ```csharp
 // Generated from UserRepo.GetUsers.sql
-await QueryAsync(UserRepo.SqlGetUsers);
+// Use [Sql] overload or explicit .Default/.Get()
+await repo.Execute(UserRepo.SqlGetUsers);
 ```
 
 ### Manual Static (Inline)
-Best for one-liners.
+Best for one-liners. **Note: Implicit conversion to string is removed.**
 ```csharp
-// Pure fallback string (implicitly converts to SqlStrings)
-await QueryAsync("SELECT count(*) FROM users");
-
 // Manual Multi-DBMS in code
 await QueryAsync(new SqlStrings(
     postgresql: "SELECT name FROM users LIMIT 10",
     sqlserver:  "SELECT TOP 10 name FROM users",
-    fallback:   "SELECT name FROM users"
+    @default:   "SELECT name FROM users"
 ));
 ```
 
@@ -106,7 +131,23 @@ Best for SQL that needs runtime logic.
 ```csharp
 var partitioned = new SqlDynamic(
     postgresql: () => $"SELECT * FROM logs_{DateTime.Now:yyyyMM}",
-    fallback: () => "SELECT * FROM logs"
+    @default: () => "SELECT * FROM logs"
 );
 await QueryAsync(partitioned);
 ```
+
+---
+
+## Troubleshooting Common Issues
+
+### 1. `SqlStrings` not found
+- **Cause**: The project hasn't been built, or the generator hasn't run.
+- **Fix**: Run `dotnet build` or save a `.cs` file to trigger the Incremental Generator.
+
+### 2. Properties missing on the class
+- **Cause**: The naming convention was violated.
+- **Check**: Is it `ClassName.QueryName.sql`? Note that `ClassName` must match the C# class name exactly (case-sensitive).
+
+### 3. Namespace Mismatch
+- **Cause**: `.sql` file is in a subdirectory, and you haven't declared the partial class in that same sub-namespace.
+- **Fix**: Move the `.sql` file to the same folder as the `.cs` file, or ensure the `partial class` in C# uses the namespace matching the folder path.

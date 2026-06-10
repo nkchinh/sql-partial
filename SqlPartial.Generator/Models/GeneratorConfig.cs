@@ -14,7 +14,9 @@ internal sealed class GeneratorConfig(
     string sqlStringsNamespace,
     string? externalSqlStringsType,
     bool nullableEnabled,
-    bool warnOnUnrecognized = false) : System.IEquatable<GeneratorConfig>
+    bool warnOnUnrecognized = false,
+    string? emitSharedNamespace = null,
+    string? useSharedNamespace = null) : System.IEquatable<GeneratorConfig>
 {
     public string RootNamespace { get; } = rootNamespace;
 
@@ -51,6 +53,17 @@ internal sealed class GeneratorConfig(
 
     public bool WarnOnUnrecognized { get; } = warnOnUnrecognized;
 
+    /// <summary>
+    /// If set, shared types (ISqlString, SqlStrings, SqlDynamic, SqlAttribute)
+    /// will be emitted as public in this namespace.
+    /// </summary>
+    public string? EmitSharedNamespace { get; } = emitSharedNamespace;
+
+    /// <summary>
+    /// If set, shared types are NOT emitted. Instead, they are imported from this namespace.
+    /// </summary>
+    public string? UseSharedNamespace { get; } = useSharedNamespace;
+
     public bool Equals(GeneratorConfig? other) =>
         other is not null &&
         RootNamespace == other.RootNamespace &&
@@ -58,11 +71,21 @@ internal sealed class GeneratorConfig(
         ExternalSqlStringsType == other.ExternalSqlStringsType &&
         NullableEnabled == other.NullableEnabled &&
         WarnOnUnrecognized == other.WarnOnUnrecognized &&
+        EmitSharedNamespace == other.EmitSharedNamespace &&
+        UseSharedNamespace == other.UseSharedNamespace &&
         Providers.SequenceEqual(other.Providers) &&
         InvalidProviderEntries.SequenceEqual(other.InvalidProviderEntries);
 
     public override bool Equals(object? obj) => Equals(obj as GeneratorConfig);
 
     public override int GetHashCode() => HashCodeHelper.Combine(
-        RootNamespace, SqlStringsNamespace, ExternalSqlStringsType, NullableEnabled, Providers.Length, WarnOnUnrecognized, InvalidProviderEntries.Length);
+        RootNamespace,
+        SqlStringsNamespace,
+        ExternalSqlStringsType,
+        NullableEnabled,
+        Providers.Length,
+        WarnOnUnrecognized,
+        InvalidProviderEntries.Length,
+        EmitSharedNamespace,
+        UseSharedNamespace);
 }

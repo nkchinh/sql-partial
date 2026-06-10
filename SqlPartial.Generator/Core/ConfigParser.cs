@@ -25,6 +25,8 @@ internal static class ConfigParser
         global.TryGetValue("build_property.SqlPartialStringsType", out var externalType);
         global.TryGetValue("build_property.Nullable", out var nullable);
         global.TryGetValue("build_property.SqlPartialWarnOnUnrecognized", out var warnRaw);
+        global.TryGetValue("build_property.SqlPartialEmitSharedNamespace", out var emitNs);
+        global.TryGetValue("build_property.SqlPartialUseSharedNamespace", out var useNs);
 
         rootNamespace = string.IsNullOrWhiteSpace(rootNamespace) ? "Generated" : rootNamespace!.Trim();
 
@@ -44,7 +46,9 @@ internal static class ConfigParser
             sqlStringsNamespace,
             string.IsNullOrWhiteSpace(externalType) ? null : externalType!.Trim(),
             nullableEnabled,
-            warnOnUnrecognized
+            warnOnUnrecognized,
+            string.IsNullOrWhiteSpace(emitNs) ? null : emitNs!.Trim(),
+            string.IsNullOrWhiteSpace(useNs) ? null : useNs!.Trim()
         );
     }
 
@@ -107,6 +111,7 @@ internal static class ConfigParser
     {
         if (string.IsNullOrEmpty(name)) return false;
         if (!char.IsLetter(name[0]) && name[0] != '_') return false;
+
         for (int i = 1; i < name.Length; i++)
         {
             if (!char.IsLetterOrDigit(name[i]) && name[i] != '_') return false;
