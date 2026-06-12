@@ -56,7 +56,7 @@ public partial class UserRepo
 }
 
 // USAGE: The generator creates a generic overload automatically!
-var users = await repo.Execute(UserRepo.SqlGetActive); 
+var users = await repo.Execute(UserRepo.SqlGetActive);
 // At runtime, 'query' becomes the PostgreSql string.
 ```
 
@@ -64,16 +64,28 @@ var users = await repo.Execute(UserRepo.SqlGetActive);
 
 ## Installation
 
+Available on [NuGet](https://www.nuget.org/packages/NkChinh.SqlPartial.Generator).
+
 ```bash
 dotnet add package NkChinh.SqlPartial.Generator
 ```
 
-## AI Agent Skill
+## AI Agent Skills
 
-If you use Gemini CLI or a similar agent-based environment, you can install the specialized skill to help you manage SQL files:
+If you use an agent-based development environment, you can install specialized skills to help you manage SQL files and maintain high-quality SQL code:
+
+### Core Management
+Handle file creation, class naming, and generator configuration.
 
 ```bash
 npx skills add nkchinh/sql-partial --skill sql-partial
+```
+
+### Style & Quality (Optional)
+Ensure production-grade SQL with best practices for documentation, performance, and multi-DBMS support.
+
+```bash
+npx skills add nkchinh/sql-partial --skill sql-partial-style
 ```
 
 ---
@@ -150,14 +162,14 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 ### 1. Parameter Documentation with Exclusion Blocks
 
-Use `--#exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
+Use `--# exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
 
 **File: `ProductRepo.GetById.sql`** (Shared default SQL)
 ```sql
---#exclude
+--# exclude
 -- Parameters for local testing & documentation
 DECLARE @Id INT = 1;
---/exclude
+-- /exclude
 
 SELECT p.Id, p.Name, p.Price
 FROM Products p
@@ -170,9 +182,9 @@ If your original query was written for a specific DBMS (e.g., SQL Server), **ren
 
 **File: `ProductRepo.Search.ms.sql`** (SQL Server version)
 ```sql
---#exclude
+--# exclude
 DECLARE @SearchText NVARCHAR(100) = 'Laptop';
---/exclude
+-- /exclude
 
 SELECT p.Id, p.Name FROM Products p
 WHERE p.Name LIKE '%' + @SearchText + '%'
@@ -182,9 +194,9 @@ OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY
 
 **File: `ProductRepo.Search.pg.sql`** (PostgreSQL version)
 ```sql
---#exclude
+--# exclude
 DECLARE SearchText TEXT := 'Laptop';
---/exclude
+-- /exclude
 
 SELECT p.Id, p.Name FROM Products p
 WHERE p.Name ILIKE '%' || :SearchText || '%'

@@ -8,7 +8,6 @@ namespace SqlPartial.Generator.Core;
 internal static class FilePathParser
 {
     public const string FallbackProviderName = "Fallback";
-    private static readonly string[] DefaultFallbackExtensions = [".sql"];
 
     /// <summary>
     /// Parses a SQL file path into (namespace, className, queryName, providerName).

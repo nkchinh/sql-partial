@@ -1,7 +1,7 @@
 ---
 name: sql-partial
 description: |
-  Guides the agent in managing SQL partial files for SqlPartial.Generator. 
+  Guides the agent in managing SQL partial files for SqlPartial.Generator.
   Triggers when:
   - Creating/updating SQL queries in .NET projects.
   - Adding multi-DBMS support (PostgreSQL, SQL Server, etc.) to existing queries.
@@ -36,10 +36,10 @@ Before touching any files, verify:
 - **Current Setup**: Does `.csproj` have `SqlPartialProviders` and `AdditionalFiles` configured?
 
 ### 2. The Abstraction Rule (Zero-Boilerplate & ISqlString)
-Always leverage the provided abstraction mechanisms to handle DBMS-specific resolution. 
+Always leverage the provided abstraction mechanisms to handle DBMS-specific resolution.
 
 **Option A: Zero-Boilerplate (Modern)**
-Use `[Sql]` (from `SqlPartial.Abstractions`) on `string` parameters. The generator handles the `.Get()` call for you. 
+Use `[Sql]` (from `SqlPartial.Abstractions`) on `string` parameters. The generator handles the `.Get()` call for you.
 - **Requirement**: The containing type must define a `string SqlProviderName` property.
 
 ```csharp
@@ -53,7 +53,7 @@ public partial class UserRepo {
 ```
 
 **Option B: Generic Execution (Manual)**
-Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`. 
+Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`.
 - **Benefit**: This allows the project to mix Auto (generated) and Manual (static/dynamic) SQL seamlessly with zero-allocation performance.
 
 ```csharp
@@ -73,39 +73,39 @@ public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString 
 ### 4. The Migration & Transition Rule (CRITICAL)
 If you are moving from a single DBMS (e.g., just default) to supporting multiple:
 1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[extension]` (e.g., `.ms.sql`).
-2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `--#testpart` / `--/testpart` to `--#exclude` / `--/exclude`. 
+2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `-- #testpart` / `-- /testpart` to `--# exclude` / `-- /exclude`.
     - *Why*: `#testpart` is deprecated. `#exclude` is the modern standard for SqlPartial.Generator.
-3.  **Preserve & Sync Testing Logic**: You **MUST** copy the setup logic (DECLAREs, temp tables) from the original exclusion block to **EVERY** new provider-specific file. 
+3.  **Preserve & Sync Testing Logic**: You **MUST** copy the setup logic (DECLAREs, temp tables) from the original exclusion block to **EVERY** new provider-specific file.
     - *Why*: Developers need to test each DBMS version independently in their editor without re-writing test data.
 
 #### Migration Example:
 **Before (UserRepo.GetById.sql):**
 ```sql
---#testpart
+-- #testpart
 DECLARE @Id INT = 1;
---/testpart
+-- /testpart
 SELECT * FROM Users WHERE Id = @Id
 ```
 
 **After (UserRepo.GetById.ms.sql):**
 ```sql
---#exclude
+--# exclude
 DECLARE @Id INT = 1;
---/exclude
+-- /exclude
 SELECT * FROM Users WHERE Id = @Id
 ```
 
 **After (UserRepo.GetById.pg.sql):**
 ```sql
---#exclude
+--# exclude
 DECLARE @Id INT = 1; -- Preserved from original!
---/exclude
+-- /exclude
 SELECT * FROM Users WHERE Id = $1
 ```
 
 - **Naming**: Always `ClassName.QueryName.[extension]`. (e.g., `.pg.sql`, `.pgsql`).
 - **Location**: `.sql` and `.cs` files **MUST** be in the same directory.
-- **Exclusion Block Placement**: Prefer placing `--#exclude` blocks at the top of the file for setup/variable declarations (e.g., `DECLARE @Id ...`).
+- **Exclusion Block Placement**: Prefer placing `--# exclude` blocks at the top of the file for setup/variable declarations (e.g., `DECLARE @Id ...`).
 
 ---
 
@@ -139,12 +139,12 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
 1.  **Doc comments are free**: Use `--` liberally. They are stripped during generation and won't affect binary size or performance.
 2.  **Implicit Conversion is REMOVED**: Always use `.Default` or `.Get()` when working with `SqlStrings` directly, or use `[Sql]` overloads.
-3.  **Exclusion blocks as Parameter Docs**: Use `--#exclude` blocks not just for test data, but to **document parameters** and their expected types/values for other developers.
+3.  **Exclusion blocks as Parameter Docs**: Use `--# exclude` blocks not just for test data, but to **document parameters** and their expected types/values for other developers.
     ```sql
-    --#exclude
+    --# exclude
     DECLARE @Status INT = 1; -- 1: Active, 0: Deleted
     DECLARE @Limit INT = 10;
-    --/exclude
+    -- /exclude
 
     SELECT * FROM Users WHERE Status = @Status LIMIT @Limit
     ```

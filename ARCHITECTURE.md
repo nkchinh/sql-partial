@@ -218,8 +218,8 @@ The parser uses a **longest-match-first** strategy against configured extensions
 
 Performed in order:
 1.  **Strip Exclusion Blocks**:
-    - `--#exclude … --/exclude` (official)
-    - `--#testpart … --/testpart` (legacy support)
+    - `--# exclude … -- /exclude` (official)
+    - `-- #testpart … -- /testpart` (legacy support)
     Both are case-insensitive and support spaces after `--`.
 2.  **Strip Comments**: Removes lines starting with `--` and blank lines.
 3.  **Escape Double Quotes**: Converts `"` to `""` for C# verbatim string literals (`@"..."`).
