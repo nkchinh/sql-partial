@@ -233,7 +233,8 @@ namespace SqlPartial.Abstractions
     {
         // Resolve the SqlStrings type name to use
         var stringsType = config.ExternalSqlStringsType
-            ?? (config.UseSharedNamespace != null ? $"{config.UseSharedNamespace}.SqlStrings" : $"{config.SqlStringsNamespace}.SqlStrings");
+            ?? (config.UseSharedNamespace != null ? $"{config.UseSharedNamespace}.SqlStrings" :
+               (config.EmitSharedNamespace != null ? $"{config.EmitSharedNamespace}.SqlStrings" : $"{config.SqlStringsNamespace}.SqlStrings"));
 
         var sb = new StringBuilder();
 
@@ -246,6 +247,10 @@ namespace SqlPartial.Abstractions
         if (config.UseSharedNamespace != null)
         {
             sb.AppendLine($"using {config.UseSharedNamespace};");
+        }
+        else if (config.EmitSharedNamespace != null)
+        {
+            sb.AppendLine($"using {config.EmitSharedNamespace};");
         }
 
         sb.AppendLine($"namespace {ns}");

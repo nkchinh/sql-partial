@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>SqlPartial.Integration.Shared.Consumer</RootNamespace>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <SqlPartialUseSharedNamespace>SqlPartial.Shared</SqlPartialUseSharedNamespace>
+    <SqlPartialUseSharedNamespace>SqlPartial.Shared.Persistence</SqlPartialUseSharedNamespace>
     <SqlPartialProviders>.pg.sql:PostgreSql;.ms.sql:SqlServer</SqlPartialProviders>
   </PropertyGroup>
 
