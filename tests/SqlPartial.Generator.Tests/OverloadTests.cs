@@ -29,9 +29,9 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
 
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
-        // Should include T from original method AND TSql for the SQL parameter
-        // It is capped to internal because ISqlString is internal
-        Assert.Contains("internal T Execute<T, TSql>(TSql query) where TSql : struct, ISqlString", overloads);
+        // Should include T from original method AND use explicit types instead of TSql
+        Assert.Contains("internal T Execute<T>(TestNamespace.Sql.SqlStrings query)", overloads);
+        Assert.Contains("internal T Execute<T>(TestNamespace.Sql.SqlDynamic query)", overloads);
 
         // Should call original method with generic argument
         Assert.Contains("return Execute<T>(query.Get(this.SqlProviderName));", overloads);
@@ -59,7 +59,8 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
 
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
-        Assert.Contains("internal void Multi<T1, T2, TSql>(TSql query, T1 arg1, T2 arg2) where TSql : struct, ISqlString", overloads);
+        Assert.Contains("internal void Multi<T1, T2>(TestNamespace.Sql.SqlStrings query, T1 arg1, T2 arg2)", overloads);
+        Assert.Contains("internal void Multi<T1, T2>(TestNamespace.Sql.SqlDynamic query, T1 arg1, T2 arg2)", overloads);
         Assert.Contains("Multi<T1, T2>(query.Get(this.SqlProviderName), arg1, arg2);", overloads);
     }
 
@@ -87,7 +88,8 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
 
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
-        Assert.Contains("public void Query<TSql>(TSql query) where TSql : struct, ISqlString", overloads);
+        Assert.Contains("public void Query(Shared.SqlStrings query)", overloads);
+        Assert.Contains("public void Query(Shared.SqlDynamic query)", overloads);
     }
 
     [Fact]
@@ -118,9 +120,8 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
         // Interfaces use extension class which must be static
-        Assert.Contains("static void Query", overloads);
-        Assert.Contains("this TestNamespace.IRepo self", overloads);
-        Assert.Contains("TSql query", overloads);
+        Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlStrings query)", overloads);
+        Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlDynamic query)", overloads);
         Assert.Contains("self.SqlProviderName", overloads);
         Assert.Contains("self.Query(query.Get(self.SqlProviderName))", overloads);
     }
@@ -155,10 +156,8 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
         // Original extension methods should preserve 'this' parameter
-        Assert.Contains("static void Query", overloads);
-        Assert.Contains("this TestNamespace.IRepo self", overloads);
-        Assert.Contains("TSql query", overloads);
-        Assert.Contains("self.SqlProviderName", overloads);
+        Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlStrings query)", overloads);
+        Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlDynamic query)", overloads);
         Assert.Contains("Query(self, query.Get(self.SqlProviderName))", overloads);
     }
 

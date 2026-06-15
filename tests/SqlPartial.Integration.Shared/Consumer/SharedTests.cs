@@ -58,9 +58,9 @@ public partial class SharedTests
     {
         var repo = new SharedRepo("PostgreSql");
 
-        // Since T cannot be inferred from arguments, we must provide both T and TSql explicitly.
-        // This is a known limitation of C# partial generic type inference.
-        var result = repo.Execute<string, SqlStrings>(SqlGetData);
+        // Now we can use <string> and it will correctly infer the SqlStrings/SqlDynamic overload!
+        // No more need for repo.Execute<string, SqlStrings>(...)
+        var result = repo.Execute<string>(SqlGetData);
 
         Assert.Null(result);
     }
