@@ -1,11 +1,7 @@
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using SqlPartial.Generator.Core;
 using SqlPartial.Generator.Models;
-using Xunit;
 
 namespace SqlPartial.Generator.Tests;
 
@@ -92,6 +88,78 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
         Assert.Contains("public void Query<TSql>(TSql query) where TSql : struct, ISqlString", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_ShouldHandleInterfaces()
+    {
+        var source = @"
+using SqlPartial.Abstractions;
+namespace TestNamespace
+{
+    public interface IRepo
+    {
+        void Query([Sql] string query);
+    }
+}
+
+namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.IRepo", "Query");
+        var config = new GeneratorConfig(
+            "TestNamespace",
+            [],
+            [],
+            "TestNamespace.Sql",
+            null,
+            true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        // Interfaces use extension class which must be static
+        Assert.Contains("static void Query", overloads);
+        Assert.Contains("this TestNamespace.IRepo self", overloads);
+        Assert.Contains("TSql query", overloads);
+        Assert.Contains("self.SqlProviderName", overloads);
+        Assert.Contains("self.Query(query.Get(self.SqlProviderName))", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_ShouldHandleStaticClassExtensions()
+    {
+        var source = @"
+using SqlPartial.Abstractions;
+namespace TestNamespace
+{
+    public interface IRepo { string SqlProviderName { get; } }
+
+    public static class RepoExtensions
+    {
+        public static void Query(this IRepo self, [Sql] string query) { }
+    }
+}
+
+namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.RepoExtensions", "Query");
+        var config = new GeneratorConfig(
+            "TestNamespace",
+            [],
+            [],
+            "TestNamespace.Sql",
+            null,
+            true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        // Original extension methods should preserve 'this' parameter
+        Assert.Contains("static void Query", overloads);
+        Assert.Contains("this TestNamespace.IRepo self", overloads);
+        Assert.Contains("TSql query", overloads);
+        Assert.Contains("self.SqlProviderName", overloads);
+        Assert.Contains("Query(self, query.Get(self.SqlProviderName))", overloads);
     }
 
     private (ITypeSymbol, IMethodSymbol) GetSymbols(string source, string typeName, string methodName)

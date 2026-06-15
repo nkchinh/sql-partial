@@ -257,6 +257,34 @@ public class SqlPartialGenerator : IIncrementalGenerator
                         .Any(p => p.Type.SpecialType == SpecialType.System_String));
                 }
 
+                // If it's an extension method in a static class, we should also check the extended type
+                if (!hasProviderName)
+                {
+                    foreach (var method in group)
+                    {
+                        if (method.IsExtensionMethod && method.Parameters.Length > 0)
+                        {
+                            var extendedType = method.Parameters[0].Type;
+                            bool extendedTypeHasProvider = extendedType.GetMembers("SqlProviderName")
+                                .OfType<IPropertySymbol>()
+                                .Any(p => p.Type.SpecialType == SpecialType.System_String);
+
+                            if (!extendedTypeHasProvider)
+                            {
+                                extendedTypeHasProvider = extendedType.AllInterfaces.Any(i => i.GetMembers("SqlProviderName")
+                                    .OfType<IPropertySymbol>()
+                                    .Any(p => p.Type.SpecialType == SpecialType.System_String));
+                            }
+
+                            if (extendedTypeHasProvider)
+                            {
+                                hasProviderName = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 if (!hasProviderName) continue;
 
                 try

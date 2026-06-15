@@ -52,7 +52,21 @@ public class SqlMethodAnalyzer : DiagnosticAnalyzer
             return;
 
         // Check if the type (or its bases/interfaces) has SqlProviderName
-        bool hasProviderName = HasSqlProviderName(containingType, method.IsStatic);
+        bool hasProviderName = false;
+
+        if (method.IsExtensionMethod && method.Parameters.Length > 0)
+        {
+            // For extension methods, check the extended type (first parameter)
+            if (method.Parameters[0].Type is INamedTypeSymbol extendedType)
+            {
+                hasProviderName = HasSqlProviderName(extendedType, false); // Extensions use instance properties
+            }
+        }
+
+        if (!hasProviderName)
+        {
+            hasProviderName = HasSqlProviderName(containingType, method.IsStatic);
+        }
 
         if (!hasProviderName)
         {

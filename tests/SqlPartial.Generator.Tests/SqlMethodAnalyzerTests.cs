@@ -107,6 +107,25 @@ namespace TestNamespace
         Assert.DoesNotContain(diagnostics, d => d.Id == "SQLPG030");
     }
 
+    [Fact]
+    public async Task Analyzer_ShouldNotErrorForExtensionMethodWhenExtendedTypeHasProvider()
+    {
+        var source = @"
+using System;
+using SqlPartial.Abstractions;
+namespace TestNamespace
+{
+    public interface IRepo { string SqlProviderName { get; } }
+    public static class RepoExtensions
+    {
+        public static void Query(this IRepo self, [Sql] string sql) { }
+    }
+}
+" + AttributeMock;
+        var diagnostics = await GetDiagnostics(source);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SQLPG030");
+    }
+
     private async Task<ImmutableArray<Diagnostic>> GetDiagnostics(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);

@@ -363,7 +363,10 @@ namespace SqlPartial.Abstractions
             }
         }
 
-        var staticKeyword = method.IsStatic ? "static " : "";
+        var isInterfaceExt = isExtension;
+        var isOriginalExt = method.IsExtensionMethod;
+        var isExt = isInterfaceExt || isOriginalExt;
+        var staticKeyword = (method.IsStatic || isExt) ? "static " : "";
         var returnType = method.ReturnsVoid ? "void" : method.ReturnType.ToDisplayString();
 
         // Build generic version (TSql)
@@ -375,11 +378,20 @@ namespace SqlPartial.Abstractions
         else sb.Append("<TSql>");
 
         sb.Append("(");
-        if (isExtension) sb.Append($"this {type.ToDisplayString()} self, ");
+        bool isFirst = true;
+
+        if (isExt)
+        {
+            var extensionType = isInterfaceExt ? type : method.Parameters[0].Type;
+            sb.Append($"this {extensionType.ToDisplayString()} self");
+            isFirst = false;
+        }
 
         for (int i = 0; i < method.Parameters.Length; i++)
         {
-            if (i > 0) sb.Append(", ");
+            if (isOriginalExt && i == 0) continue; // Skip 'this' parameter for original extension methods
+
+            if (!isFirst) sb.Append(", ");
             var param = method.Parameters[i];
             if (IsSqlAttribute(param))
             {
@@ -389,24 +401,32 @@ namespace SqlPartial.Abstractions
             {
                 sb.Append($"{param.Type.ToDisplayString()} {param.Name}");
             }
+
+            isFirst = false;
         }
 
         sb.AppendLine(") where TSql : struct, ISqlString");
         sb.AppendLine("        {");
 
-        var providerAccess = method.IsStatic
-            ? $"{type.Name}.SqlProviderName"
-            : (isExtension ? "self.SqlProviderName" : "this.SqlProviderName");
+        var providerAccess = isExt
+            ? "self.SqlProviderName"
+            : (method.IsStatic ? $"{type.Name}.SqlProviderName" : "this.SqlProviderName");
 
-        sb.Append($"            {(method.ReturnsVoid ? "" : "return ")}{(isExtension ? "self." : "")}{method.Name}");
+        var callPrefix = isInterfaceExt ? "self." : "";
+        sb.Append($"            {(method.ReturnsVoid ? "" : "return ")}{callPrefix}{method.Name}");
         if (method.IsGenericMethod) sb.Append("<" + methodGenerics + ">");
         sb.Append("(");
 
+        isFirst = true;
         for (int i = 0; i < method.Parameters.Length; i++)
         {
-            if (i > 0) sb.Append(", ");
+            if (!isFirst) sb.Append(", ");
             var param = method.Parameters[i];
-            if (IsSqlAttribute(param))
+            if (isOriginalExt && i == 0)
+            {
+                sb.Append("self");
+            }
+            else if (IsSqlAttribute(param))
             {
                 sb.Append($"{param.Name}.Get({providerAccess})");
             }
@@ -414,6 +434,8 @@ namespace SqlPartial.Abstractions
             {
                 sb.Append(param.Name);
             }
+
+            isFirst = false;
         }
 
         sb.AppendLine(");");
