@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using SqlPartial.Generator.Models;
 
 namespace SqlPartial.Generator.Core;
@@ -402,6 +403,12 @@ namespace SqlPartial.Abstractions
                 sb.Append($"{param.Type.ToDisplayString()} {param.Name}");
             }
 
+            if (param.HasExplicitDefaultValue)
+            {
+                sb.Append(" = ");
+                sb.Append(FormatDefaultValue(param));
+            }
+
             isFirst = false;
         }
 
@@ -448,5 +455,20 @@ namespace SqlPartial.Abstractions
         return param.GetAttributes().Any(a =>
             a.AttributeClass?.ToDisplayString() == "SqlPartial.Abstractions.SqlAttribute" ||
             a.AttributeClass?.Name == "SqlAttribute"); // Fallback for partial compilation
+    }
+
+    private static string FormatDefaultValue(IParameterSymbol param)
+    {
+        var value = param.ExplicitDefaultValue;
+        if (value == null)
+        {
+            if (param.Type.IsReferenceType || (param.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
+            {
+                return "null";
+            }
+            return "default";
+        }
+
+        return SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false);
     }
 }

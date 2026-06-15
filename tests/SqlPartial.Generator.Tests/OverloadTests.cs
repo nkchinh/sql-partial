@@ -162,6 +162,86 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
         Assert.Contains("Query(self, query.Get(self.SqlProviderName))", overloads);
     }
 
+    [Fact]
+    public void SourceBuilder_BuildOverloads_ShouldPreserveDefaultValues()
+    {
+        var source = @"
+using SqlPartial.Abstractions;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public void Query([Sql] string query, int count = 10, string name = ""default"", bool flag = true) { }
+    }
+}
+
+namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains("int count = 10", overloads);
+        Assert.Contains("string name = \"default\"", overloads);
+        Assert.Contains("bool flag = true", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_ShouldHandleStructDefaultValues()
+    {
+        var source = @"
+using SqlPartial.Abstractions;
+using System.Threading;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public void Query([Sql] string query, CancellationToken ct = default) { }
+    }
+}
+
+namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        // Should be default or default(CancellationToken), NOT null
+        Assert.Contains("CancellationToken ct = default", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_ShouldHandleNullableDefaultValues()
+    {
+        var source = @"
+using SqlPartial.Abstractions;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public void Query([Sql] string query, int? val = null, int? val2 = 5) { }
+    }
+}
+
+namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains("int? val = null", overloads);
+        Assert.Contains("int? val2 = 5", overloads);
+    }
+
     private (ITypeSymbol, IMethodSymbol) GetSymbols(string source, string typeName, string methodName)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
