@@ -148,21 +148,62 @@ public class SqlPartialGenerator : IIncrementalGenerator
             );
 
         // ── Collect groups per class and combine with config + nullable ──
+        var modifierConfigs = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                "SqlPartial.SqlPartialAttribute",
+                predicate: static (s, _) => s is ClassDeclarationSyntax || s is InterfaceDeclarationSyntax,
+                transform: static (ctx, _) =>
+                {
+                    var symbol = ctx.TargetSymbol as INamedTypeSymbol;
+                    if (symbol == null) return null;
+
+                    var attr = symbol.GetAttributes().FirstOrDefault(a =>
+                        a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlPartialAttribute" ||
+                        a.AttributeClass?.Name == "SqlPartialAttribute");
+
+                    if (attr == null || attr.ConstructorArguments.Length == 0) return null;
+
+                    var modifierVal = (int)attr.ConstructorArguments[0].Value!;
+                    var modifier = modifierVal switch
+                    {
+                        1 => "internal",
+                        2 => "protected",
+                        3 => "public",
+                        _ => "private"
+                    };
+
+                    return ((string Namespace, string ClassName, string Modifier)?)(symbol.ContainingNamespace.ToDisplayString(), symbol.Name, modifier);
+                })
+            .Where(static x => x != null)
+            .Select(static (x, _) => x!.Value)
+            .Collect();
+
         var classBatches = groups
             .Collect()
             .Combine(config.Combine(supportsNullable))
+            .Combine(modifierConfigs)
             .SelectMany(static (tuple, _) =>
             {
-                var (allGroups, (cfg, nullableSupport)) = tuple;
+                var ((allGroups, (cfg, nullableSupport)), modifiers) = tuple;
+
+                var modifierLookup = modifiers.ToDictionary(
+                    m => (m.Namespace, m.ClassName),
+                    m => m.Modifier);
+
                 return allGroups
                     .GroupBy(g => (g.Namespace, g.ClassName))
-                    .Select(g => (
-                        Namespace: g.Key.Namespace,
-                        ClassName: g.Key.ClassName,
-                        Groups: g.ToImmutableArray(),
-                        Config: cfg,
-                        SupportsNullable: nullableSupport
-                    ));
+                    .Select(g =>
+                    {
+                        modifierLookup.TryGetValue((g.Key.Namespace, g.Key.ClassName), out var modifier);
+                        return (
+                            Namespace: g.Key.Namespace,
+                            ClassName: g.Key.ClassName,
+                            Groups: g.ToImmutableArray(),
+                            Config: cfg,
+                            SupportsNullable: nullableSupport,
+                            Modifier: modifier ?? "private"
+                        );
+                    });
             });
 
         // ── Emit SqlStrings struct (once, if not external) ───────────────
@@ -207,7 +248,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
                     batch.ClassName,
                     batch.Groups,
                     batch.Config,
-                    batch.SupportsNullable);
+                    batch.SupportsNullable,
+                    batch.Modifier);
 
                 var hash = GetHash($"{batch.Namespace}.{batch.ClassName}");
                 var hintName = $"{batch.ClassName}.{hash}.g.cs";
@@ -222,7 +264,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
         // ── Emit Overloads for [Sql] parameters ──────────────────────────
         var methodDeclarations = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                "SqlPartial.Abstractions.SqlAttribute",
+                "SqlPartial.SqlAttribute",
                 predicate: static (s, _) => s is ParameterSyntax,
                 transform: static (ctx, _) => ctx.TargetSymbol.ContainingSymbol as IMethodSymbol)
             .Where(static m => m is not null)

@@ -37,10 +37,10 @@ partial class UserRepo
 ```
 
 ### 2. Zero-Boilerplate Parameter Injection
-Use the `[Sql]` attribute from `SqlPartial.Abstractions` to automatically resolve the correct SQL string based on the current DBMS.
+Use the `[Sql]` attribute from `SqlPartial` to automatically resolve the correct SQL string based on the current DBMS.
 
 ```csharp
-using SqlPartial.Abstractions;
+using SqlPartial;
 
 public partial class UserRepo
 {
@@ -130,7 +130,7 @@ Add to your `.csproj`. A default is always available — only declare additional
 
 ### 3. Declare the partial class
 
-The generator produces a `partial class` — you must declare the other half yourself:
+The generator produces a `partial class` — you must declare the other half yourself. The namespace is derived automatically from `$(RootNamespace)` + the relative directory of the `.sql` file.
 
 ```csharp
 namespace MyApp.Data
@@ -138,8 +138,6 @@ namespace MyApp.Data
     public partial class UserRepo { }
 }
 ```
-
-The namespace is derived automatically from `$(RootNamespace)` + the relative directory of the `.sql` file.
 
 ---
 
@@ -218,6 +216,21 @@ SELECT id, name, email FROM users WHERE id = @Id
 ---
 
 ## Advanced Configuration
+
+### Customizing Access Modifiers
+By default, generated SQL properties are `private static readonly`. If you need to share them across classes or projects, use the `[SqlPartial]` attribute.
+
+```csharp
+using SqlPartial;
+
+[SqlPartial(AccessModifier.Public)]
+public partial class SharedQueries
+{
+    // Any .sql files targeting SharedQueries will generate PUBLIC properties
+}
+```
+
+Available modifiers: `Private` (default), `Internal`, `Protected`, `Public`.
 
 ### Sharing types across projects (Recommended)
 

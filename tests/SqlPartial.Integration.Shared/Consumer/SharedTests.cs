@@ -1,6 +1,6 @@
 using Xunit;
 using SqlPartial.Shared.Persistence;
-using SqlPartial.Abstractions;
+using SqlPartial;
 
 namespace SqlPartial.Integration.Shared.Consumer;
 
@@ -74,5 +74,15 @@ public partial class SharedTests
         var result = repo.Process(SqlGetData, "test string");
 
         Assert.Equal("test string", result);
+    }
+
+    [Fact]
+    public void ShouldAccessPublicSharedSqlFromOtherProject()
+    {
+        // PublicSharedQueries is in the Abstractions project
+        // Its SqlGetSharedData property is public because of [SqlPartial(AccessModifier.Public)]
+        var sql = SqlPartial.Integration.Shared.Abstractions.PublicSharedQueries.SqlGetSharedData;
+
+        Assert.Equal("SELECT 'Public SQL content';", sql.Default);
     }
 }

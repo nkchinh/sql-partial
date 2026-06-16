@@ -11,7 +11,7 @@ public class OverloadTests
     public void SourceBuilder_BuildOverloads_ShouldHandleGenericMethods()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public partial class Repo
@@ -21,7 +21,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Execute");
@@ -41,7 +41,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldHandleMultipleGenericParameters()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public partial class Repo
@@ -51,7 +51,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Multi");
@@ -68,7 +68,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldBePublicWhenSharedNamespaceIsUsed()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public partial class Repo
@@ -78,7 +78,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
@@ -96,7 +96,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldHandleInterfaces()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public interface IRepo
@@ -105,7 +105,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.IRepo", "Query");
@@ -130,7 +130,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldHandleStaticClassExtensions()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public interface IRepo { string SqlProviderName { get; } }
@@ -141,7 +141,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.RepoExtensions", "Query");
@@ -165,7 +165,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldPreserveDefaultValues()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public partial class Repo
@@ -175,7 +175,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
@@ -192,7 +192,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldHandleStructDefaultValues()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 using System.Threading;
 namespace TestNamespace
 {
@@ -203,7 +203,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
@@ -219,7 +219,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     public void SourceBuilder_BuildOverloads_ShouldHandleNullableDefaultValues()
     {
         var source = @"
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public partial class Repo
@@ -229,7 +229,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");

@@ -1,6 +1,6 @@
 using Xunit;
 using SqlPartial.Shared.Persistence; // The customized namespace
-using SqlPartial.Abstractions;
+using SqlPartial;
 
 namespace SqlPartial.Integration.Shared.Abstractions;
 

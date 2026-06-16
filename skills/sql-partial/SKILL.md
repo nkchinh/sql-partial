@@ -39,11 +39,11 @@ Before touching any files, verify:
 Always leverage the provided abstraction mechanisms to handle DBMS-specific resolution.
 
 **Option A: Zero-Boilerplate (Modern)**
-Use `[Sql]` (from `SqlPartial.Abstractions`) on `string` parameters. The generator handles the `.Get()` call for you.
+Use `[Sql]` (from `SqlPartial`) on `string` parameters. The generator handles the `.Get()` call for you.
 - **Requirement**: The containing type must define a `string SqlProviderName` property.
 
 ```csharp
-using SqlPartial.Abstractions;
+using SqlPartial;
 
 public partial class UserRepo {
     public string SqlProviderName { get; set; } = "PostgreSql";
@@ -51,6 +51,9 @@ public partial class UserRepo {
     public void Execute([Sql] string query) => ...
 }
 ```
+
+- **Advanced Sharing**: By default, SQL properties are `private`. To share them across classes, use `[SqlPartial(AccessModifier.Public)]` on the class. Supported modifiers are `Private` (default), `Internal`, `Protected`, `Public`.
+
 
 **Option B: Generic Execution (Manual)**
 Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`.

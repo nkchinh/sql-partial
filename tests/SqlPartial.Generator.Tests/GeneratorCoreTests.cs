@@ -84,7 +84,7 @@ public class GeneratorCoreTests
         Assert.DoesNotContain("namespace SqlPartial", source);
 
         var attrSource = SourceBuilder.BuildSqlAttribute();
-        Assert.Contains("namespace SqlPartial.Abstractions", attrSource);
+        Assert.Contains("namespace SqlPartial", attrSource);
         Assert.Contains("sealed class SqlAttribute : System.Attribute { }", attrSource);
     }
 

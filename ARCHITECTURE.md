@@ -67,7 +67,7 @@ GeneratorConfig → RegisterSourceOutput → SourceBuilder.BuildSqlStringsStruct
 ### 2. Semantic Pipeline (Attributes & Overloads)
 
 ```
-SyntaxProvider.ForAttributeWithMetadataName("SqlPartial.Abstractions.SqlAttribute")
+SyntaxProvider.ForAttributeWithMetadataName("SqlPartial.SqlAttribute")
     │ transform: ctx.TargetSymbol.ContainingSymbol as IMethodSymbol
     ▼
 ImmutableArray<IMethodSymbol> ← Collect()
@@ -75,9 +75,16 @@ ImmutableArray<IMethodSymbol> ← Collect()
     │ Group by ContainingType
     ▼
 RegisterSourceOutput → SourceBuilder.BuildOverloads()
+
+SyntaxProvider.ForAttributeWithMetadataName("SqlPartial.SqlPartialAttribute")
+    │ transform: ctx.TargetSymbol as INamedTypeSymbol
+    │ select: extract AccessModifier value
+    ▼
+ImmutableArray<(Namespace, ClassName, Modifier)> ← Collect()
+    │ used to customize BuildPartialClass()
 ```
 
-### Why use `Collect()` twice?
+### Why use `Collect()` multiple times?
 
 The first `Collect()` gathers all `SqlFile` objects so they can be grouped by query. Without this, each `SqlFile` would be processed independently, and it would be impossible to know which files belong to the same query.
 
@@ -144,7 +151,7 @@ Ensures that MSBuild Fast Up-To-Date Check (FUTDC) detects changes in tracked fi
 
 ### `SqlAttribute`
 
-Injected via `RegisterPostInitializationOutput` into the `SqlPartial.Abstractions` namespace. This ensures the attribute is always available for semantic analysis even before other code is generated. It is used to mark parameters for overload generation.
+Injected via `RegisterPostInitializationOutput` into the `SqlPartial` namespace. This ensures the attribute is always available for semantic analysis even before other code is generated. It is used to mark parameters for overload generation.
 
 ### `ISqlString` Interface
 

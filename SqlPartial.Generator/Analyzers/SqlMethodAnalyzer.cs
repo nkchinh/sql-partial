@@ -41,7 +41,7 @@ public class SqlMethodAnalyzer : DiagnosticAnalyzer
         // Check if any parameter has the [Sql] attribute
         bool hasSqlAttribute = method.Parameters.Any(p =>
             p.GetAttributes().Any(a =>
-                a.AttributeClass?.ToDisplayString() == "SqlPartial.Abstractions.SqlAttribute" ||
+                a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlAttribute" ||
                 a.AttributeClass?.Name == "SqlAttribute"));
 
         if (!hasSqlAttribute)
@@ -73,12 +73,12 @@ public class SqlMethodAnalyzer : DiagnosticAnalyzer
             // Report error on the first parameter that has the attribute
             var firstParam = method.Parameters.First(p =>
                 p.GetAttributes().Any(a =>
-                    a.AttributeClass?.ToDisplayString() == "SqlPartial.Abstractions.SqlAttribute" ||
+                    a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlAttribute" ||
                     a.AttributeClass?.Name == "SqlAttribute"));
 
             var attribute = firstParam.GetAttributes()
                 .First(a =>
-                    a.AttributeClass?.ToDisplayString() == "SqlPartial.Abstractions.SqlAttribute" ||
+                    a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlAttribute" ||
                     a.AttributeClass?.Name == "SqlAttribute");
 
             var location = attribute.ApplicationSyntaxReference?

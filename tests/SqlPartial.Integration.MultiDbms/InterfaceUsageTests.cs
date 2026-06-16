@@ -1,5 +1,5 @@
 using Xunit;
-using SqlPartial.Abstractions;
+using SqlPartial;
 
 namespace SqlPartial.Integration.MultiDbms;
 

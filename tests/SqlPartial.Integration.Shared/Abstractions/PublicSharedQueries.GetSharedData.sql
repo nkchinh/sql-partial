@@ -1,0 +1,1 @@
+SELECT 'Public SQL content';

@@ -4,11 +4,11 @@ This guide provides examples of how to write SQL for various scenarios, focusing
 
 ## 1. Zero-Boilerplate Abstraction with `[Sql]`
 
-Instead of manually calling `.Get()` or `.Default`, use the `[Sql]` attribute from `SqlPartial.Abstractions` to handle DBMS resolution automatically.
+Instead of manually calling `.Get()` or `.Default`, use the `[Sql]` attribute from `SqlPartial` to handle DBMS resolution automatically.
 
 **C# Repository:**
 ```csharp
-using SqlPartial.Abstractions;
+using SqlPartial;
 
 public partial class ProductRepo {
     // Required for [Sql] resolution (static or instance)

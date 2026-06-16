@@ -10,7 +10,7 @@ namespace SqlPartial.Generator.Tests;
 public class SqlMethodAnalyzerTests
 {
     private const string AttributeMock = @"
-namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 ";
 
     [Fact]
@@ -18,7 +18,7 @@ namespace SqlPartial.Abstractions { public class SqlAttribute : System.Attribute
     {
         var source = @"
 using System;
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public class Repo
@@ -36,7 +36,7 @@ namespace TestNamespace
     {
         var source = @"
 using System;
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public class Repo
@@ -55,7 +55,7 @@ namespace TestNamespace
     {
         var source = @"
 using System;
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public interface IRepo
@@ -74,7 +74,7 @@ namespace TestNamespace
     {
         var source = @"
 using System;
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public class Repo
@@ -93,7 +93,7 @@ namespace TestNamespace
     {
         var source = @"
 using System;
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public class Repo
@@ -112,7 +112,7 @@ namespace TestNamespace
     {
         var source = @"
 using System;
-using SqlPartial.Abstractions;
+using SqlPartial;
 namespace TestNamespace
 {
     public interface IRepo { string SqlProviderName { get; } }
