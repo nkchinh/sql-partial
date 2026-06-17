@@ -35,4 +35,19 @@
             Include="@(AdditionalFiles->WithMetadataValue('SourceItemType', 'SqlPartial'))"
             Set="SqlPartial" />
     </ItemGroup>
+
+    <!--
+        Nesting: Automatically nest SQL files under their corresponding ClassName.cs
+        By default, it targets all AdditionalFiles with SourceItemType="SqlPartial".
+        Users can override the glob pattern via SqlPartialNestingFilter if needed.
+    -->
+    <PropertyGroup>
+        <SqlPartialNestingFilter Condition="'$(SqlPartialNestingFilter)' == ''">**/*</SqlPartialNestingFilter>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(SqlPartialDisableNesting)' != 'true'">
+        <AdditionalFiles Update="$(SqlPartialNestingFilter)">
+            <DependentUpon Condition="'%(SourceItemType)' == 'SqlPartial'">$([System.String]::Copy('%(Filename)').Split('.')[0]).cs</DependentUpon>
+        </AdditionalFiles>
+    </ItemGroup>
 </Project>
