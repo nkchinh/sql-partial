@@ -32,6 +32,19 @@ internal sealed class GeneratorConfig(
     public ImmutableArray<string> InvalidProviderEntries { get; } = invalidProviderEntries;
 
     /// <summary>
+    /// Combined user providers and fallback, deduplicated and sorted by length descending.
+    /// This is pre-calculated for efficient file path matching.
+    /// </summary>
+    public ImmutableArray<SqlProvider> SortedProviders { get; } =
+        new[] { new SqlProvider(".sql", FilePathParser.FallbackProviderName) }
+            .Concat(providers)
+            .GroupBy(p => p.Extension, System.StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderByDescending(p => p.Extension.Length)
+            .ThenBy(p => p.Extension)
+            .ToImmutableArray();
+
+    /// <summary>
     /// Returns the unique DBMS provider names (e.g., if both .pg.sql and .pgsql map to PostgreSql).
     /// </summary>
     public System.Collections.Generic.IEnumerable<string> DistinctProviderNames => Providers.Select(p => p.Name).Distinct();

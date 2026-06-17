@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.IO;
-using System.Linq;
 using SqlPartial.Generator.Models;
 
 namespace SqlPartial.Generator.Core;
@@ -18,25 +17,9 @@ internal static class FilePathParser
     ///   3. Strip the matched extension and split remaining filename into ClassName.QueryName.
     /// </summary>
     public static (string ns, string className, string queryName, string providerName)?
-        TryParse(string filePath, string rootNamespace, string projectDir, ImmutableArray<SqlProvider> providers)
+        TryParse(string filePath, string rootNamespace, string projectDir, ImmutableArray<SqlProvider> sortedProviders)
     {
-        var fullPath = filePath;
         var filename = Path.GetFileName(filePath);
-
-        // 1. Combine user providers with hardcoded fallback defaults
-        // Fallback defaults are added FIRST to ensure they win in case of duplicate extensions
-        var allPossibleProviders = new System.Collections.Generic.List<SqlProvider>
-        {
-            new(".sql", FallbackProviderName)
-        };
-        allPossibleProviders.AddRange(providers);
-
-        // 2. Deduplicate by extension and sort by length descending (Longest match wins)
-        var sortedProviders = allPossibleProviders
-            .GroupBy(p => p.Extension, System.StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .OrderByDescending(p => p.Extension.Length)
-            .ThenBy(p => p.Extension);
 
         string? matchedExtension = null;
         string providerName = FallbackProviderName;

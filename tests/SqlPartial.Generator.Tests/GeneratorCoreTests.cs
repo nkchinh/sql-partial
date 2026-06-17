@@ -231,7 +231,8 @@ public class GeneratorCoreTests
             new SqlProvider(".pgsql", "PostgreSql")
         );
 
-        var result = FilePathParser.TryParse(path, rootNs, projDir, providers);
+        var config = new GeneratorConfig(rootNs, providers, [], rootNs, null, true);
+        var result = FilePathParser.TryParse(path, rootNs, projDir, config.SortedProviders);
 
         Assert.NotNull(result);
         Assert.Equal(expectedNs, result.Value.ns);
@@ -307,7 +308,8 @@ public class GeneratorCoreTests
             new SqlProvider(".sql", "MySql") // Ambiguous with fallback default
         );
 
-        var result = FilePathParser.TryParse(path, "NS", @"C:\Proj", providers);
+        var config = new GeneratorConfig("NS", providers, [], "NS", null, true);
+        var result = FilePathParser.TryParse(path, "NS", @"C:\Proj", config.SortedProviders);
 
         Assert.NotNull(result);
         Assert.Equal(expectedProvider, result.Value.providerName);
@@ -316,7 +318,8 @@ public class GeneratorCoreTests
     [Fact]
     public void FilePathParser_ShouldReturnNullOnInvalidFilename()
     {
-        var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj", []);
+        var config = new GeneratorConfig("MyProj", [], [], "MyProj", null, true);
+        var result = FilePathParser.TryParse(@"C:\Proj\Invalid.sql", "MyProj", @"C:\Proj", config.SortedProviders);
         Assert.Null(result);
     }
 }

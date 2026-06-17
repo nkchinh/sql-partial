@@ -17,6 +17,56 @@ public class SqlPartialGenerator : IIncrementalGenerator
     private const string SqlStringsHintName = "SqlStrings.g.cs";
     private const string SqlAttributeHintName = "SqlAttribute.g.cs";
 
+    private static class Diagnostics
+    {
+        private const string Category = "SqlPartial";
+
+        public static readonly DiagnosticDescriptor SQLPG001 = new(
+            "SQLPG001", "Invalid Provider Configuration", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG002 = new(
+            "SQLPG002", "Struct Generation Failed", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG003 = new(
+            "SQLPG003", "Class Generation Failed", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG004 = new(
+            "SQLPG004", "Overload Generation Failed", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG010 = new(
+            "SQLPG010", "Missing Fallback SQL", "{0}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG011 = new(
+            "SQLPG011", "Empty SQL content", "{0}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG013 = new(
+            "SQLPG013", "Mismatched Exclude Tag", "{0}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG020 = new(
+            "SQLPG020", "Unrecognized SQL file extension", "{0}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static DiagnosticDescriptor GetDescriptor(string id) => id switch
+        {
+            "SQLPG001" => SQLPG001,
+            "SQLPG002" => SQLPG002,
+            "SQLPG003" => SQLPG003,
+            "SQLPG004" => SQLPG004,
+            "SQLPG010" => SQLPG010,
+            "SQLPG011" => SQLPG011,
+            "SQLPG013" => SQLPG013,
+            "SQLPG020" => SQLPG020,
+            _ => new DiagnosticDescriptor(id, "Generator Error", "{0}", Category, DiagnosticSeverity.Error, true)
+        };
+    }
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // ── Post Initialization (SqlAttribute) ───────────────────────────
@@ -54,9 +104,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
         {
             foreach (var invalidEntry in cfg.InvalidProviderEntries)
             {
-                ReportDiagnostic(ctx, "SQLPG001", "Invalid Provider Configuration",
-                    $"The provider configuration '{invalidEntry}' is invalid. It must follow the format 'extension:DisplayName' (e.g., '.pg.sql:PostgreSql').",
-                    DiagnosticSeverity.Error);
+                ReportDiagnostic(ctx, Diagnostics.SQLPG001,
+                    $"The provider configuration '{invalidEntry}' is invalid. It must follow the format 'extension:DisplayName' (e.g., '.pg.sql:PostgreSql').");
             }
         });
 
@@ -85,7 +134,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             .Select(static (tuple, _) =>
             {
                 var ((filePath, sourceText, cleanResult), (cfg, projDir)) = tuple;
-                var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.Providers);
+                var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.SortedProviders);
 
                 if (parsed is null)
                 {
@@ -105,7 +154,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
             // Report SqlContentCleaner diagnostics (SQLPG013)
             foreach (var diag in result.Diagnostics)
             {
-                ReportDiagnostic(ctx, diag.Id, diag.Title, diag.Message, diag.Severity,
+                var descriptor = Diagnostics.GetDescriptor(diag.Id);
+                ReportDiagnostic(ctx, descriptor, diag.Message,
                     result.FilePath, diag.Offset, diag.Length, result.SourceText);
             }
 
@@ -113,18 +163,18 @@ public class SqlPartialGenerator : IIncrementalGenerator
             {
                 if (cfg.WarnOnUnrecognized)
                 {
-                    ReportDiagnostic(ctx, "SQLPG020", "Unrecognized SQL file extension",
+                    ReportDiagnostic(ctx, Diagnostics.SQLPG020,
                         $"File '{System.IO.Path.GetFileName(result.FilePath)}' does not match any configured provider or fallback extension.",
-                        DiagnosticSeverity.Warning, result.FilePath);
+                        result.FilePath);
                 }
                 return;
             }
 
             if (result.File != null && string.IsNullOrWhiteSpace(result.File.Content))
             {
-                ReportDiagnostic(ctx, "SQLPG011", "Empty SQL content",
+                ReportDiagnostic(ctx, Diagnostics.SQLPG011,
                     $"File '{System.IO.Path.GetFileName(result.File.FilePath)}' is empty after cleaning.",
-                    DiagnosticSeverity.Warning, result.File.FilePath);
+                    result.File.FilePath);
             }
         });
 
@@ -228,7 +278,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             }
             catch (Exception ex)
             {
-                ReportDiagnostic(ctx, "SQLPG002", "Struct Generation Failed", ex.Message, DiagnosticSeverity.Error);
+                ReportDiagnostic(ctx, Diagnostics.SQLPG002, ex.Message);
             }
         });
 
@@ -246,9 +296,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
 
                     if (!hasFallback && providersCount < totalConfigured)
                     {
-                        ReportDiagnostic(ctx, "SQLPG010", "Missing Fallback SQL",
-                            $"Query '{group.QueryName}' in class '{group.ClassName}' is missing a fallback and does not cover all configured providers. Runtime may return empty strings.",
-                            DiagnosticSeverity.Warning);
+                        ReportDiagnostic(ctx, Diagnostics.SQLPG010,
+                            $"Query '{group.QueryName}' in class '{group.ClassName}' is missing a fallback and does not cover all configured providers. Runtime may return empty strings.");
                     }
                 }
 
@@ -266,7 +315,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             }
             catch (Exception ex)
             {
-                ReportDiagnostic(ctx, "SQLPG003", "Class Generation Failed", ex.Message, DiagnosticSeverity.Error);
+                ReportDiagnostic(ctx, Diagnostics.SQLPG003, ex.Message);
             }
         });
 
@@ -346,20 +395,16 @@ public class SqlPartialGenerator : IIncrementalGenerator
                 }
                 catch (Exception ex)
                 {
-                    ReportDiagnostic(ctx, "SQLPG004", "Overload Generation Failed", ex.Message, DiagnosticSeverity.Error);
+                    ReportDiagnostic(ctx, Diagnostics.SQLPG004, ex.Message);
                 }
             }
         });
     }
 
     private static void ReportDiagnostic(
-        SourceProductionContext ctx, string id, string title, string message, DiagnosticSeverity severity,
+        SourceProductionContext ctx, DiagnosticDescriptor descriptor, string message,
         string? filePath = null, int offset = 0, int length = 0, SourceText? sourceText = null)
     {
-        var descriptor = new DiagnosticDescriptor(
-            id, title, message,
-            "SqlPartial", severity, isEnabledByDefault: true);
-
         Location? location = null;
         if (filePath != null)
         {
@@ -378,7 +423,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             location = Location.Create(filePath, span, lineSpan);
         }
 
-        ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location));
+        ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location, message));
     }
 
     private static string GetHash(string input)
