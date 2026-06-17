@@ -270,12 +270,35 @@ To avoid duplicating core types and enable cross-project attribute sharing, use 
 | `SQLPG001` | **Error** | Config | Invalid `SqlPartialProviders` syntax. Format must be `ext:Name`. |
 | `SQLPG002` | **Error** | Tooling | Internal failure generating `SqlStrings` struct. |
 | `SQLPG003` | **Error** | Tooling | Internal failure generating partial class file. |
+| `SQLPG004` | **Error** | Tooling | Internal failure generating method overloads. |
+| `SQLPG005` | Warning | Logic | **Naming Collision:** Generated property name exists in user code. Renamed automatically. |
+| `SQLPG006` | Warning | Logic | **Duplicate Mapping:** Multiple files map to the same DBMS provider. Longest extension wins. |
 | `SQLPG030` | **Error** | Design | Missing `SqlProviderName` property when using `[Sql]`. |
 | `SQLPG010` | Warning | Logic | Missing Default SQL & incomplete DBMS coverage. |
 | `SQLPG011` | Warning | Quality | SQL file is empty after cleaning comments/excludes. |
 | `SQLPG012` | Warning | Logic | Missing Default SQL in manual instantiation (`new SqlStrings`). |
 | `SQLPG013` | Warning | Quality | Mismatched `-- #exclude` or `-- /exclude` tags in SQL file. |
 | `SQLPG020` | Warning | Usage | Unrecognized extension (Disabled by default). |
+
+---
+
+## Robustness & Conflict Handling
+
+SqlPartial is designed to be "silent but helpful," ensuring your project builds even with imperfect configurations.
+
+### 1. Naming Collisions
+If a generated property (e.g., `SqlGetUsers`) would conflict with an existing field, property, or method in your C# class, the generator will:
+1. Emit a **SQLPG005** warning.
+2. Automatically append a numeric suffix to the generated property (e.g., `SqlGetUsers1`).
+
+This ensures that your manual code always takes precedence and the project remains compilable.
+
+### 2. SQL Mapping Collisions
+If multiple files resolve to the same DBMS provider for the same query (e.g., `GetUsers.pg.sql` and `GetUsers.pgsql` both mapping to `PostgreSql`), the generator will:
+1. Emit a **SQLPG006** warning.
+2. Select the file with the **longest extension** (the most specific one).
+
+Example: `GetUsers.pg.sql` (length 7) will be chosen over `GetUsers.sql` (length 4) if both are considered candidates for a specific provider.
 
 ---
 

@@ -43,7 +43,7 @@ The generator uses two distinct incremental pipelines:
 ```
 AdditionalTextsProvider
     │ filter: SourceItemType=SqlPartial (Any extension!)
-    │ select: read content, clean
+    │ select: read content, clean (trim trailing whitespace, preserve 1 space)
     ▼
 (FilePath, Content)
     │ combine with GeneratorConfig + ProjectDir
@@ -51,13 +51,15 @@ AdditionalTextsProvider
     ▼
 ImmutableArray<SqlFile>  ← Collect()
     │ SelectMany: group by (Namespace, ClassName, QueryName)
+    │ Logic: Detect Mapping Collisions (SQLPG006) - Longest extension wins
     ▼
-ImmutableArray<SqlQueryGroup>  ← Collect()
+ImmutableArray<(SqlQueryGroup Group, Diagnostics)>  ← Collect()
     │ combine with GeneratorConfig
     │ SelectMany: group by (Namespace, ClassName)
+    │ Logic: Detect Naming Collisions (SQLPG005) - Auto-rename to SqlProp1
     ▼
 classBatches → RegisterSourceOutput → SourceBuilder.BuildPartialClass()
-
+```
 AnalyzerConfigOptionsProvider
     │ select: ConfigParser.Parse → GeneratorConfig
     ▼
@@ -74,14 +76,14 @@ ImmutableArray<IMethodSymbol> ← Collect()
     │ combine with GeneratorConfig
     │ Group by ContainingType
     ▼
-RegisterSourceOutput → SourceBuilder.BuildOverloads()
+RegisterSourceOutput → SourceBuilder.BuildOverloads() (with Generic Constraints support)
 
-SyntaxProvider.ForAttributeWithMetadataName("SqlPartial.SqlPartialAttribute")
+SyntaxProvider.CreateSyntaxProvider (All partial class/interface)
     │ transform: ctx.TargetSymbol as INamedTypeSymbol
-    │ select: extract AccessModifier value
+    │ select: extract AccessModifier (if any), collect symbol.MemberNames
     ▼
-ImmutableArray<(Namespace, ClassName, Modifier)> ← Collect()
-    │ used to customize BuildPartialClass()
+ImmutableArray<(FullTypeName, Modifier, MemberNames)> ← Collect()
+    │ used to detect naming collisions and customize visibility
 ```
 
 ### Why use `Collect()` multiple times?
@@ -91,6 +93,22 @@ The first `Collect()` gathers all `SqlFile` objects so they can be grouped by qu
 The second `Collect()` gathers all `SqlQueryGroup` objects to group them by class, allowing for a single `.g.cs` file to be generated per class instead of one file per query.
 
 **Trade-off**: Whenever any tracked file changes, the entire pipeline after `Collect()` re-executes. This is a necessary trade-off because grouping is a global operation. For the typical number of files in a project, this cost is negligible.
+
+---
+
+## Robustness & Conflict Handling
+
+SqlPartial implements automatic resolution for common configuration and naming conflicts.
+
+### 1. SQL Mapping Collisions (`SQLPG006`)
+When multiple `.sql` files resolve to the same DBMS provider for a single query (e.g., `Repo.Get.pg.sql` and `Repo.Get.pgsql`), the generator selects the file with the **longest extension**. This ensures the most specific configuration takes precedence. A warning is issued to notify the user.
+
+### 2. Naming Collisions (`SQLPG005`)
+To prevent compilation errors, the generator checks if a property it intends to create (e.g., `SqlGetUsers`) already exists in the user's manual code.
+- If a conflict is found, it appends a numeric suffix: `SqlGetUsers1`.
+- It repeats this until a unique name is found.
+- A warning is issued describing the rename.
+This check applies to **all** target classes, even those without an explicit `[SqlPartial]` attribute.
 
 ---
 

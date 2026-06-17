@@ -17,7 +17,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
     private const string SqlStringsHintName = "SqlStrings.g.cs";
     private const string SqlAttributeHintName = "SqlAttribute.g.cs";
 
-    private static class Diagnostics
+    internal static class Diagnostics
     {
         private const string Category = "SqlPartial";
 
@@ -36,6 +36,14 @@ public class SqlPartialGenerator : IIncrementalGenerator
         public static readonly DiagnosticDescriptor SQLPG004 = new(
             "SQLPG004", "Overload Generation Failed", "{0}",
             Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG005 = new(
+            "SQLPG005", "Naming Collision", "{0}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG006 = new(
+            "SQLPG006", "Duplicate SQL Mapping", "{0}",
+            Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
         public static readonly DiagnosticDescriptor SQLPG010 = new(
             "SQLPG010", "Missing Fallback SQL", "{0}",
@@ -59,6 +67,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             "SQLPG002" => SQLPG002,
             "SQLPG003" => SQLPG003,
             "SQLPG004" => SQLPG004,
+            "SQLPG005" => SQLPG005,
             "SQLPG010" => SQLPG010,
             "SQLPG011" => SQLPG011,
             "SQLPG013" => SQLPG013,
@@ -70,7 +79,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // ── Post Initialization (SqlAttribute) ───────────────────────────
-        context.RegisterPostInitializationOutput(static ctx =>
+        context.RegisterPostInitializationOutput(ctx =>
         {
             var source = SourceBuilder.BuildSqlAttribute();
             ctx.AddSource(SqlAttributeHintName, SourceText.From(source, Encoding.UTF8));
@@ -78,11 +87,11 @@ public class SqlPartialGenerator : IIncrementalGenerator
 
         // ── Config (project-level, stable across file edits) ────────────
         var config = context.AnalyzerConfigOptionsProvider
-            .Select(static (options, _) => ConfigParser.Parse(options));
+            .Select((options, _) => ConfigParser.Parse(options));
 
         // ── Language version detection (nullable support) ───────────────
         var supportsNullable = context.ParseOptionsProvider
-            .Select(static (options, _) =>
+            .Select((options, _) =>
             {
                 if (options is CSharpParseOptions csOptions)
                 {
@@ -93,14 +102,14 @@ public class SqlPartialGenerator : IIncrementalGenerator
 
         // ── Collect project directory (needed for namespace derivation) ──
         var projectDir = context.AnalyzerConfigOptionsProvider
-            .Select(static (options, _) =>
+            .Select((options, _) =>
             {
                 options.GlobalOptions.TryGetValue("build_property.MSBuildProjectDirectory", out var dir);
                 return dir ?? string.Empty;
             });
 
         // ── Report SQLPG001 (Invalid Config) ────────────────────────────
-        context.RegisterSourceOutput(config, static (ctx, cfg) =>
+        context.RegisterSourceOutput(config, (ctx, cfg) =>
         {
             foreach (var invalidEntry in cfg.InvalidProviderEntries)
             {
@@ -112,14 +121,14 @@ public class SqlPartialGenerator : IIncrementalGenerator
         // ── AdditionalFiles: marked as SqlPartial ────────────────────────
         var sqlFiles = context.AdditionalTextsProvider
             .Combine(context.AnalyzerConfigOptionsProvider)
-            .Where(static tuple =>
+            .Where(tuple =>
             {
                 var (file, options) = tuple;
                 options.GetOptions(file).TryGetValue(
                     "build_metadata.AdditionalFiles.SourceItemType", out var itemType);
                 return string.Equals(itemType, "SqlPartial", StringComparison.OrdinalIgnoreCase);
             })
-            .Select(static (tuple, cancellationToken) =>
+            .Select((tuple, cancellationToken) =>
             {
                 var (file, _) = tuple;
                 var sourceText = file.GetText(cancellationToken);
@@ -131,7 +140,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
         // ── Parse each file into SqlFile model ───────────────────────────
         var parsedFiles = sqlFiles
             .Combine(config.Combine(projectDir))
-            .Select(static (tuple, _) =>
+            .Select((tuple, _) =>
             {
                 var ((filePath, sourceText, cleanResult), (cfg, projDir)) = tuple;
                 var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.SortedProviders);
@@ -147,7 +156,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             });
 
         // ── Report SQLPG011 (Empty), SQLPG013 (Mismatched) & SQLPG020 (Unrecognized) ──
-        context.RegisterSourceOutput(parsedFiles.Combine(config), static (ctx, tuple) =>
+        context.RegisterSourceOutput(parsedFiles.Combine(config), (ctx, tuple) =>
         {
             var (result, cfg) = tuple;
 
@@ -180,93 +189,171 @@ public class SqlPartialGenerator : IIncrementalGenerator
 
         // ── Filter valid files and group into SqlQueryGroup ──────────────
         var groups = parsedFiles
-            .Where(static r => r.File != null)
-            .Select(static (r, _) => r.File!)
+            .Where(r => r.File != null)
+            .Select((r, _) => r.File!)
             .Collect()
-            .SelectMany(static (files, _) =>
+            .SelectMany((files, _) =>
                 files
                     .GroupBy(f => (f.Namespace, f.ClassName, f.QueryName))
                     .Select(g =>
                     {
                         var contents = new System.Collections.Generic.Dictionary<string, string>();
+                        var diagnostics = new System.Collections.Generic.List<(DiagnosticDescriptor, string, string)>(); // (Descriptor, Message, FilePath)
+
                         foreach (var file in g)
                         {
-                            // If multiple extensions map to same provider name, first one wins
-                            if (!contents.ContainsKey(file.ProviderName))
+                            if (contents.TryGetValue(file.ProviderName, out var existing))
                             {
-                                contents.Add(file.ProviderName, file.Content);
+                                diagnostics.Add((Diagnostics.SQLPG006,
+                                    $"Multiple files map to the provider '{file.ProviderName}' for query '{file.QueryName}' in class '{file.ClassName}'. The first one encountered will be used.",
+                                    file.FilePath));
+                                continue;
                             }
+                            contents.Add(file.ProviderName, file.Content);
                         }
 
-                        return new SqlQueryGroup(
+                        var group = new SqlQueryGroup(
                             g.Key.Namespace,
                             g.Key.ClassName,
                             g.Key.QueryName,
                             contents.ToImmutableDictionary()
                         );
+
+                        return (Group: group, Diagnostics: diagnostics.ToImmutableArray());
                     })
             );
 
+        // ── Report SQLPG006 (Duplicate Mapping) ─────────────────────────
+        context.RegisterSourceOutput(groups, (ctx, tuple) =>
+        {
+            foreach (var diag in tuple.Diagnostics)
+            {
+                ReportDiagnostic(ctx, diag.Item1, diag.Item2, diag.Item3);
+            }
+        });
+
         // ── Collect groups per class and combine with config + nullable ──
-        var modifierConfigs = context.SyntaxProvider
-            .ForAttributeWithMetadataName(
-                "SqlPartial.SqlPartialAttribute",
-                predicate: static (s, _) => s is ClassDeclarationSyntax || s is InterfaceDeclarationSyntax,
-                transform: static (ctx, _) =>
+        var classMetadata = context.SyntaxProvider.CreateSyntaxProvider(
+            predicate: static (node, _) =>
+                (node is ClassDeclarationSyntax c && c.Modifiers.Any(SyntaxKind.PartialKeyword)) ||
+                (node is InterfaceDeclarationSyntax i && i.Modifiers.Any(SyntaxKind.PartialKeyword)),
+            transform: static (ctx, _) =>
+            {
+                var symbol = ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) as INamedTypeSymbol;
+                if (symbol == null) return default;
+
+                var ns = symbol.ContainingNamespace.IsGlobalNamespace ? "" : symbol.ContainingNamespace.ToDisplayString();
+                var fullName = string.IsNullOrEmpty(ns) ? symbol.Name : $"{ns}.{symbol.Name}";
+
+                // Check for attribute
+                var attr = symbol.GetAttributes().FirstOrDefault(a =>
+                    a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlPartialAttribute" ||
+                    a.AttributeClass?.Name == "SqlPartialAttribute");
+
+                string modifier = "private";
+                if (attr != null && attr.ConstructorArguments.Length > 0)
                 {
-                    if (ctx.TargetSymbol is not INamedTypeSymbol symbol) return null;
-
-                    var attr = symbol.GetAttributes().FirstOrDefault(a =>
-                        a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlPartialAttribute" ||
-                        a.AttributeClass?.Name == "SqlPartialAttribute");
-
-                    if (attr == null || attr.ConstructorArguments.Length == 0) return null;
-
                     var modifierVal = (int)attr.ConstructorArguments[0].Value!;
-                    var modifier = modifierVal switch
+                    modifier = modifierVal switch
                     {
                         1 => "internal",
                         2 => "protected",
                         3 => "public",
                         _ => "private"
                     };
+                }
 
-                    return ((string Namespace, string ClassName, string Modifier)?)(symbol.ContainingNamespace.ToDisplayString(), symbol.Name, modifier);
-                })
-            .Where(static x => x != null)
-            .Select(static (x, _) => x!.Value)
+                var members = symbol.MemberNames.ToImmutableHashSet();
+                return (FullTypeName: fullName, Modifier: modifier, ExistingMembers: members);
+            })
+            .Where(static x => x != default)
             .Collect();
 
         var classBatches = groups
             .Collect()
             .Combine(config.Combine(supportsNullable))
-            .Combine(modifierConfigs)
-            .SelectMany(static (tuple, _) =>
+            .Combine(classMetadata)
+            .SelectMany((tuple, _) =>
             {
-                var ((allGroups, (cfg, nullableSupport)), modifiers) = tuple;
+                var ((allGroups, (cfg, nullableSupport)), metadata) = tuple;
 
-                var modifierLookup = modifiers.ToDictionary(
-                    m => (m.Namespace, m.ClassName),
-                    m => m.Modifier);
+                // Use a dictionary but handle potential duplicates from multiple partial files
+                var metadataLookup = new System.Collections.Generic.Dictionary<string, (string Modifier, ImmutableHashSet<string> ExistingMembers)>();
+                foreach (var m in metadata)
+                {
+                    if (!metadataLookup.ContainsKey(m.FullTypeName))
+                    {
+                        metadataLookup.Add(m.FullTypeName, (m.Modifier, m.ExistingMembers));
+                    }
+                    else if (m.Modifier != "private")
+                    {
+                        // If we already have an entry but this one has the attribute, use its modifier.
+                        // MemberNames should be identical for all parts.
+                        metadataLookup[m.FullTypeName] = (m.Modifier, m.ExistingMembers);
+                    }
+                }
 
                 return allGroups
-                    .GroupBy(g => (g.Namespace, g.ClassName))
+                    .GroupBy(g =>
+                    {
+                        var group = g.Group;
+                        return string.IsNullOrEmpty(group.Namespace) ? group.ClassName : $"{group.Namespace}.{group.ClassName}";
+                    })
                     .Select(g =>
                     {
-                        modifierLookup.TryGetValue((g.Key.Namespace, g.Key.ClassName), out var modifier);
+                        metadataLookup.TryGetValue(g.Key, out var info);
+
+                        var finalGroups = new System.Collections.Generic.List<SqlQueryGroup>();
+                        var diagnostics = new System.Collections.Generic.List<(DiagnosticDescriptor, string)>();
+
+                        foreach (var tuple in g)
+                        {
+                            var group = tuple.Group;
+                            var originalName = $"Sql{group.QueryName}";
+                            var currentName = originalName;
+                            int counter = 1;
+
+                            // Check if the property name already exists in the user's class
+                            if (info.ExistingMembers != null && info.ExistingMembers.Contains(currentName))
+                            {
+                                while (info.ExistingMembers.Contains($"{originalName}{counter}"))
+                                {
+                                    counter++;
+                                }
+                                currentName = $"{originalName}{counter}";
+                                diagnostics.Add((Diagnostics.SQLPG005,
+                                    $"Property '{originalName}' already exists in class '{group.ClassName}'. Generated property renamed to '{currentName}'."));
+                            }
+
+                            if (currentName != originalName)
+                            {
+                                finalGroups.Add(new SqlQueryGroup(group.Namespace, group.ClassName, currentName.Substring(3), group.ContentByProviderName));
+                            }
+                            else
+                            {
+                                finalGroups.Add(group);
+                            }
+                        }
+
+                        // Split key back to namespace and class name
+                        var lastDot = g.Key.LastIndexOf('.');
+                        var ns = lastDot == -1 ? "" : g.Key.Substring(0, lastDot);
+                        var className = lastDot == -1 ? g.Key : g.Key.Substring(lastDot + 1);
+
                         return (
-                            Namespace: g.Key.Namespace,
-                            ClassName: g.Key.ClassName,
-                            Groups: g.ToImmutableArray(),
+                            Namespace: ns,
+                            ClassName: className,
+                            Groups: finalGroups.ToImmutableArray(),
                             Config: cfg,
                             SupportsNullable: nullableSupport,
-                            Modifier: modifier ?? "private"
+                            Modifier: info.Modifier ?? "private",
+                            Diagnostics: diagnostics.ToImmutableArray()
                         );
                     });
             });
 
         // ── Emit SqlStrings struct (once, if not external) ───────────────
-        context.RegisterSourceOutput(config.Combine(supportsNullable), static (ctx, tuple) =>
+        context.RegisterSourceOutput(config.Combine(supportsNullable), (ctx, tuple) =>
         {
             var (cfg, nullableSupport) = tuple;
             if (cfg.ExternalSqlStringsType is not null) return;
@@ -283,10 +370,16 @@ public class SqlPartialGenerator : IIncrementalGenerator
         });
 
         // ── Emit one partial class file per (Namespace, ClassName) ───────
-        context.RegisterSourceOutput(classBatches, static (ctx, batch) =>
+        context.RegisterSourceOutput(classBatches, (ctx, batch) =>
         {
             try
             {
+                // Report SQLPG005 (Naming Collision)
+                foreach (var diag in batch.Diagnostics)
+                {
+                    ReportDiagnostic(ctx, diag.Item1, diag.Item2);
+                }
+
                 // Report SQLPG010 (Missing Fallback)
                 foreach (var group in batch.Groups)
                 {
@@ -323,13 +416,13 @@ public class SqlPartialGenerator : IIncrementalGenerator
         var methodDeclarations = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 "SqlPartial.SqlAttribute",
-                predicate: static (s, _) => s is ParameterSyntax,
-                transform: static (ctx, _) => ctx.TargetSymbol.ContainingSymbol as IMethodSymbol)
-            .Where(static m => m is not null)
-            .Select(static (m, _) => m!)
+                predicate: (s, _) => s is ParameterSyntax,
+                transform: (ctx, _) => ctx.TargetSymbol.ContainingSymbol as IMethodSymbol)
+            .Where(m => m is not null)
+            .Select((m, _) => m!)
             .Collect();
 
-        context.RegisterSourceOutput(methodDeclarations.Combine(config.Combine(supportsNullable)), static (ctx, tuple) =>
+        context.RegisterSourceOutput(methodDeclarations.Combine(config.Combine(supportsNullable)), (ctx, tuple) =>
         {
             var (methods, (cfg, nullableSupport)) = tuple;
             if (methods.IsDefaultOrEmpty) return;

@@ -1,6 +1,5 @@
 using Xunit;
 using SqlPartial.Shared.Persistence;
-using SqlPartial;
 
 namespace SqlPartial.Integration.Shared.Consumer;
 

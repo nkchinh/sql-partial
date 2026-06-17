@@ -1,5 +1,4 @@
 using Xunit;
-using SqlPartial;
 
 namespace SqlPartial.Integration.MultiDbms;
 

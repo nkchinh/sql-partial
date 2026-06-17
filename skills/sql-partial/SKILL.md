@@ -53,6 +53,7 @@ public partial class UserRepo {
 ```
 
 - **Advanced Sharing**: By default, SQL properties are `private`. To share them across classes, use `[SqlPartial(AccessModifier.Public)]` on the class. Supported modifiers are `Private` (default), `Internal`, `Protected`, `Public`.
+- **Collision Protection**: The generator automatically detects if a property name (e.g., `SqlGetUsers`) already exists in your manual code and will rename the generated property to `SqlGetUsers1` (and report `SQLPG005`). This works for **all** target classes.
 
 
 **Option B: Generic Execution (Manual)**

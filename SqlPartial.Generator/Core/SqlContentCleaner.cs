@@ -146,14 +146,22 @@ internal static class SqlContentCleaner
 
         while ((line = reader.ReadLine()) != null)
         {
-            var trimmed = line.TrimStart();
-            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("--"))
+            var trimmedStart = line.TrimStart();
+            if (string.IsNullOrWhiteSpace(trimmedStart) || trimmedStart.StartsWith("--"))
                 continue;
+
+            // Trim trailing whitespace but keep exactly one space if it had any
+            // to avoid issues when concatenating lines into a single string.
+            var trimmedLine = line.TrimEnd();
+            if (trimmedLine.Length < line.Length)
+            {
+                trimmedLine += " ";
+            }
 
             if (!firstLine) sbFinal.AppendLine();
             else firstLine = false;
 
-            sbFinal.Append(line);
+            sbFinal.Append(trimmedLine);
         }
 
         // Escape double-quotes for C# verbatim string literal

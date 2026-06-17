@@ -1,0 +1,1 @@
+SELECT 'collision' FROM Collision;

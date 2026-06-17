@@ -1,0 +1,1 @@
+SELECT 'pg' FROM Users;
