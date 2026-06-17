@@ -160,11 +160,11 @@ ClassName.QueryName.ms.sql       SQL Server-specific
 
 ### 1. Parameter Documentation with Exclusion Blocks
 
-Use `--# exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
+Use `-- #exclude` to provide test data and document parameter meanings. This block is stripped from C# but remains in your SQL file for IDE use.
 
 **File: `ProductRepo.GetById.sql`** (Shared default SQL)
 ```sql
---# exclude
+-- #exclude
 -- Parameters for local testing & documentation
 DECLARE @Id INT = 1;
 -- /exclude
@@ -180,7 +180,7 @@ If your original query was written for a specific DBMS (e.g., SQL Server), **ren
 
 **File: `ProductRepo.Search.ms.sql`** (SQL Server version)
 ```sql
---# exclude
+-- #exclude
 DECLARE @SearchText NVARCHAR(100) = 'Laptop';
 -- /exclude
 
@@ -192,7 +192,7 @@ OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY
 
 **File: `ProductRepo.Search.pg.sql`** (PostgreSQL version)
 ```sql
---# exclude
+-- #exclude
 DECLARE SearchText TEXT := 'Laptop';
 -- /exclude
 
@@ -274,6 +274,7 @@ To avoid duplicating core types and enable cross-project attribute sharing, use 
 | `SQLPG010` | Warning | Logic | Missing Default SQL & incomplete DBMS coverage. |
 | `SQLPG011` | Warning | Quality | SQL file is empty after cleaning comments/excludes. |
 | `SQLPG012` | Warning | Logic | Missing Default SQL in manual instantiation (`new SqlStrings`). |
+| `SQLPG013` | Warning | Quality | Mismatched `-- #exclude` or `-- /exclude` tags in SQL file. |
 | `SQLPG020` | Warning | Usage | Unrecognized extension (Disabled by default). |
 
 ---

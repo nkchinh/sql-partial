@@ -73,8 +73,10 @@ public class SqlPartialGenerator : IIncrementalGenerator
             .Select(static (tuple, cancellationToken) =>
             {
                 var (file, _) = tuple;
-                var content = file.GetText(cancellationToken)?.ToString() ?? string.Empty;
-                return (FilePath: file.Path, Content: SqlContentCleaner.Clean(content));
+                var sourceText = file.GetText(cancellationToken);
+                var contentString = sourceText?.ToString() ?? string.Empty;
+                var cleanResult = SqlContentCleaner.Clean(contentString);
+                return (FilePath: file.Path, SourceText: sourceText, CleanResult: cleanResult);
             });
 
         // ── Parse each file into SqlFile model ───────────────────────────
@@ -82,7 +84,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             .Combine(config.Combine(projectDir))
             .Select(static (tuple, _) =>
             {
-                var ((filePath, content), (cfg, projDir)) = tuple;
+                var ((filePath, sourceText, cleanResult), (cfg, projDir)) = tuple;
                 var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.Providers);
 
                 if (parsed is null)
@@ -91,14 +93,22 @@ public class SqlPartialGenerator : IIncrementalGenerator
                 }
 
                 var (ns, className, queryName, providerName) = parsed.Value;
-                var file = new SqlFile(filePath, ns, className, queryName, providerName, content);
-                return new SqlFileResult(filePath, file, isUnrecognized: false);
+                var file = new SqlFile(filePath, ns, className, queryName, providerName, cleanResult.Content);
+                return new SqlFileResult(filePath, file, isUnrecognized: false, sourceText, cleanResult.Diagnostics);
             });
 
-        // ── Report SQLPG011 (Empty) & SQLPG020 (Unrecognized) ────────────
+        // ── Report SQLPG011 (Empty), SQLPG013 (Mismatched) & SQLPG020 (Unrecognized) ──
         context.RegisterSourceOutput(parsedFiles.Combine(config), static (ctx, tuple) =>
         {
             var (result, cfg) = tuple;
+
+            // Report SqlContentCleaner diagnostics (SQLPG013)
+            foreach (var diag in result.Diagnostics)
+            {
+                ReportDiagnostic(ctx, diag.Id, diag.Title, diag.Message, diag.Severity,
+                    result.FilePath, diag.Offset, diag.Length, result.SourceText);
+            }
+
             if (result.IsUnrecognized)
             {
                 if (cfg.WarnOnUnrecognized)
@@ -154,8 +164,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
                 predicate: static (s, _) => s is ClassDeclarationSyntax || s is InterfaceDeclarationSyntax,
                 transform: static (ctx, _) =>
                 {
-                    var symbol = ctx.TargetSymbol as INamedTypeSymbol;
-                    if (symbol == null) return null;
+                    if (ctx.TargetSymbol is not INamedTypeSymbol symbol) return null;
 
                     var attr = symbol.GetAttributes().FirstOrDefault(a =>
                         a.AttributeClass?.ToDisplayString() == "SqlPartial.SqlPartialAttribute" ||
@@ -344,7 +353,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
     }
 
     private static void ReportDiagnostic(
-        SourceProductionContext ctx, string id, string title, string message, DiagnosticSeverity severity, string? filePath = null)
+        SourceProductionContext ctx, string id, string title, string message, DiagnosticSeverity severity,
+        string? filePath = null, int offset = 0, int length = 0, SourceText? sourceText = null)
     {
         var descriptor = new DiagnosticDescriptor(
             id, title, message,
@@ -353,8 +363,19 @@ public class SqlPartialGenerator : IIncrementalGenerator
         Location? location = null;
         if (filePath != null)
         {
-            location = Location.Create(
-                filePath, new TextSpan(0, 0), new LinePositionSpan(new LinePosition(0, 0), new LinePosition(0, 0)));
+            var span = new TextSpan(offset, length);
+            LinePositionSpan lineSpan;
+
+            if (sourceText != null && offset + length <= sourceText.Length)
+            {
+                lineSpan = sourceText.Lines.GetLinePositionSpan(span);
+            }
+            else
+            {
+                lineSpan = new LinePositionSpan(new LinePosition(0, 0), new LinePosition(0, 0));
+            }
+
+            location = Location.Create(filePath, span, lineSpan);
         }
 
         ctx.ReportDiagnostic(Diagnostic.Create(descriptor, location));
@@ -368,10 +389,17 @@ public class SqlPartialGenerator : IIncrementalGenerator
         return hash.ToString("X8");
     }
 
-    private sealed class SqlFileResult(string filePath, SqlFile? file, bool isUnrecognized)
+    private sealed class SqlFileResult(
+        string filePath,
+        SqlFile? file,
+        bool isUnrecognized,
+        SourceText? sourceText = null,
+        ImmutableArray<SqlDiagnosticInfo>? diagnostics = null)
     {
         public string FilePath { get; } = filePath;
         public SqlFile? File { get; } = file;
         public bool IsUnrecognized { get; } = isUnrecognized;
+        public SourceText? SourceText { get; } = sourceText;
+        public ImmutableArray<SqlDiagnosticInfo> Diagnostics { get; } = diagnostics ?? ImmutableArray<SqlDiagnosticInfo>.Empty;
     }
 }

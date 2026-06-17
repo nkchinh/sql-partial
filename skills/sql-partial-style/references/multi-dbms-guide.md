@@ -59,7 +59,7 @@ The query becomes identical across all providers.
 -- Notes:   @created_at and @expires_at are UTC, computed by the caller.
 --          Do not substitute a DB timestamp function inside this file.
 -- =============================================================================
---# exclude
+-- #exclude
 -- Replace <ts> with the appropriate type for your provider:
 --   PostgreSQL: TIMESTAMPTZ    SQL Server: DATETIME2    MySQL: DATETIME
 DECLARE @user_id    INT  = 1;
@@ -117,7 +117,7 @@ No ANSI standard covers this. Syntax differs completely.
 --          Use .pg.sql or .ms.sql for callers that need the id immediately.
 --          Without an override the caller must issue a separate lookup.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @customer_id INT  = 1;
 DECLARE @total       DECIMAL(18,4) = 0.00;
 DECLARE @created_at  <ts> = '<utc_value>';
@@ -133,7 +133,7 @@ VALUES (@customer_id, @total, @created_at)
 -- Query:   Insert a new order record and return its generated id (PostgreSQL)
 -- Returns: Newly inserted orders.id
 -- =============================================================================
---# exclude
+-- #exclude
 -- $1 = customer_id INT
 -- $2 = total_amount DECIMAL
 -- $3 = created_at   TIMESTAMPTZ
@@ -153,7 +153,7 @@ RETURNING id
 -- Query:   Insert a new order record and return its generated Id (SQL Server)
 -- Returns: Newly inserted orders.Id via OUTPUT clause
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @customer_id INT          = 1;
 DECLARE @total       DECIMAL(18,4) = 0.00;
 DECLARE @created_at  DATETIME2    = '<utc_value>';
@@ -177,7 +177,7 @@ VALUES (@customer_id, @total, @created_at)
 --          duplicate key error. Use .pg.sql or .ms.sql for production.
 --          This file exists only as a fallback for unsupported providers.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @user_id    INT  = 1;
 DECLARE @token      TEXT = 'test-token';
 DECLARE @expires_at <ts> = '<utc_value>';
@@ -198,7 +198,7 @@ WHERE token = @token
 -- Returns: No rows
 -- Notes:   ON CONFLICT is atomic — safe under concurrent writes.
 -- =============================================================================
---# exclude
+-- #exclude
 -- $1 = user_id    INT
 -- $2 = token      TEXT
 -- $3 = expires_at TIMESTAMPTZ
@@ -224,7 +224,7 @@ ON CONFLICT (token)
 -- Returns: No rows
 -- Notes:   MERGE is atomic within a single statement.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @user_id    INT          = 1;
 DECLARE @token      NVARCHAR(256) = N'test-token';
 DECLARE @expires_at DATETIME2    = '<utc_value>';
@@ -259,7 +259,7 @@ Override when dataset size makes this unacceptable.
 --          Acceptable for tables with fewer than ~50k rows.
 --          Use .pg.sql or .ms.sql for production scale.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @keyword     TEXT = 'budget';
 DECLARE @page_size   INT  = 20;
 DECLARE @page_offset INT  = 0;
@@ -284,7 +284,7 @@ OFFSET @page_offset ROWS FETCH NEXT @page_size ROWS ONLY
 --          search_vector maintained by trigger or generated column.
 --          $1 uses tsquery syntax: 'budget & forecast', 'budget | estimate'.
 -- =============================================================================
---# exclude
+-- #exclude
 -- $1 = keyword     TEXT  (tsquery syntax)
 -- $2 = page_size   INT
 -- $3 = page_offset INT
@@ -315,7 +315,7 @@ LIMIT $2 OFFSET $3
 --                KEY INDEX PK_articles;
 --          @keyword uses CONTAINS syntax: '"budget" AND "forecast"', '"budg*"'.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @keyword     NVARCHAR(256) = N'"budget" AND "forecast"';
 DECLARE @page_size   INT           = 20;
 DECLARE @page_offset INT           = 0;
@@ -355,17 +355,17 @@ OFFSET @page_offset ROWS FETCH NEXT @page_size ROWS ONLY
 
 ---
 
-## Syncing `--# exclude` Across Provider Files
+## Syncing `-- #exclude` Across Provider Files
 
 Every provider file must be independently runnable in its own SQL editor.
-When you create an override, copy the `--# exclude` block from the default file
+When you create an override, copy the `-- #exclude` block from the default file
 and adjust the data types for that provider.
 
 For PostgreSQL files using `$N` placeholders, add a parameter map comment
 at the top of the block so the file is self-documenting:
 
 ```sql
---# exclude
+-- #exclude
 -- $1 = account_id  INT
 -- $2 = status      INT     -- 0=Pending 1=Active 2=Suspended
 -- $3 = page_size   INT     -- max 100

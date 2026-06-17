@@ -49,7 +49,7 @@ Rename `UserRepo.GetActive.sql` → `UserRepo.GetActive.ms.sql`.
 ```sql
 -- UserRepo.GetActive.ms.sql
 -- Get active users
---# exclude
+-- #exclude
 DECLARE @MinScore INT = 100;
 -- /exclude
 SELECT * FROM Users WHERE IsActive = 1 AND Score >= @MinScore
@@ -60,7 +60,7 @@ Create `UserRepo.GetActive.pg.sql`:
 ```sql
 -- UserRepo.GetActive.pg.sql
 -- Get active users
---# exclude
+-- #exclude
 DECLARE @MinScore INT = 100; -- Preserved for testing
 -- /exclude
 SELECT * FROM Users WHERE IsActive = true AND Score >= :MinScore
@@ -76,7 +76,7 @@ Create `UserRepo.GetActive.sql` with generic SQL.
 Exclusion blocks allow you to keep "Playground" code in your SQL file.
 
 ```sql
---# exclude
+-- #exclude
 -- This part only runs in your SQL Editor
 CREATE TABLE #TempUsers (Id INT);
 INSERT INTO #TempUsers VALUES (1);
@@ -84,7 +84,7 @@ INSERT INTO #TempUsers VALUES (1);
 
 SELECT * FROM Users WHERE Id IN (SELECT Id FROM #TempUsers) -- Error in most DBs, just an example!
 
---# exclude
+-- #exclude
 DROP TABLE #TempUsers;
 -- /exclude
 ```

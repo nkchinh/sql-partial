@@ -1,8 +1,8 @@
 # Exclude Block Patterns
 
-Templates for common `--# exclude` scenarios.
+Templates for common `-- #exclude` scenarios.
 The block contains only executable SQL — documentation belongs outside as full-line `--` comments.
-End-of-line comments inside `--# exclude` are safe because the entire block is stripped.
+End-of-line comments inside `-- #exclude` are safe because the entire block is stripped.
 
 ---
 
@@ -13,7 +13,7 @@ End-of-line comments inside `--# exclude` are safe because the entire block is s
 -- Query:   Find a user by internal ID
 -- Returns: Fields matching UserProfile model; empty result if not found or deleted
 -- =============================================================================
---# exclude
+-- #exclude
 -- internal users.id, not the external UUID
 DECLARE @id INT = 1;
 -- /exclude
@@ -42,7 +42,7 @@ End-of-line comments on DECLARE lines are safe — the entire block is stripped.
 -- Notes:   @author_id = NULL returns articles from all authors.
 --          @page_size max is 50; the application layer must enforce this.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @status      INT = 1;     -- 0=Draft 1=Published 2=Archived 3=Deleted
 DECLARE @author_id   INT = NULL;  -- NULL = all authors
 DECLARE @page_size   INT = 20;    -- max 50; caller enforces
@@ -78,7 +78,7 @@ OFFSET @page_offset ROWS FETCH NEXT @page_size ROWS ONLY
 --          a DB timestamp function inside this file.
 --          Relies on index on (account_id, paid_at).
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @account_id  INT  = 1;
 DECLARE @start_date  <ts> = '<utc_value>';   -- inclusive
 DECLARE @end_date    <ts> = '<utc_value>';   -- exclusive
@@ -111,7 +111,7 @@ OFFSET @page_offset ROWS FETCH NEXT @page_size ROWS ONLY
 -- Query:   Calculate line totals and invoice summary for a given order
 -- Returns: SubTotal, TaxAmount, GrandTotal, LineCount
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @order_id INT = 101;
 
 CREATE TABLE #test_lines (
@@ -142,7 +142,7 @@ SELECT
     COUNT(*)                            AS line_count
 FROM line_totals
 
---# exclude
+-- #exclude
 DROP TABLE IF EXISTS #test_lines;
 -- /exclude
 ```
@@ -160,7 +160,7 @@ DROP TABLE IF EXISTS #test_lines;
 --          Caller should delay ~100ms between iterations to release locks.
 --          Condition prevents re-deletion on re-run.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @cutoff_date <ts>  = '<utc_value>';
 DECLARE @batch_size  INT   = 300;
 
@@ -192,7 +192,7 @@ LIMIT @batch_size
 --          double-migration on re-run. Run during low-traffic windows or wrap in
 --          a transaction at the application layer if atomicity is required.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @old_plan_id INT  = 5;
 DECLARE @new_plan_id INT  = 10;
 DECLARE @expired_on  <ts> = '<utc_value>';
@@ -209,7 +209,7 @@ WHERE
     AND plan_expires_at < @expired_on
 LIMIT @batch_size
 
---# exclude
+-- #exclude
 -- verify remaining rows after each test run
 SELECT COUNT(*) AS remaining_to_migrate
 FROM members
@@ -222,7 +222,7 @@ WHERE plan_id         = @old_plan_id
 
 ## Pattern 7 — Multi-stream UNION ALL
 
-The `--# exclude` block stays compact — declarations only.
+The `-- #exclude` block stays compact — declarations only.
 All stream documentation lives outside as full-line `--` comments.
 
 ```sql
@@ -232,7 +232,7 @@ All stream documentation lives outside as full-line `--` comments.
 -- Notes:   source_order drives sort stability only; not returned to the caller.
 --          Stream [2] filter mirrors Stream [0] — keep both in sync on changes.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @invoice_id  INT = 99;
 DECLARE @page_size   INT = 100;
 DECLARE @page_offset INT = 0;

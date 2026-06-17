@@ -76,7 +76,7 @@ public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString 
 ### 4. The Migration & Transition Rule (CRITICAL)
 If you are moving from a single DBMS (e.g., just default) to supporting multiple:
 1.  **Identify & Rename**: If `ClassName.QueryName.sql` exists and contains provider-specific syntax (e.g., T-SQL), **rename it** to `ClassName.QueryName.[extension]` (e.g., `.ms.sql`).
-2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `-- #testpart` / `-- /testpart` to `--# exclude` / `-- /exclude`.
+2.  **MANDATORY Block Modernization**: You **MUST** convert legacy `-- #testpart` / `-- /testpart` to `-- #exclude` / `-- /exclude`.
     - *Why*: `#testpart` is deprecated. `#exclude` is the modern standard for SqlPartial.Generator.
 3.  **Preserve & Sync Testing Logic**: You **MUST** copy the setup logic (DECLAREs, temp tables) from the original exclusion block to **EVERY** new provider-specific file.
     - *Why*: Developers need to test each DBMS version independently in their editor without re-writing test data.
@@ -92,7 +92,7 @@ SELECT * FROM Users WHERE Id = @Id
 
 **After (UserRepo.GetById.ms.sql):**
 ```sql
---# exclude
+-- #exclude
 DECLARE @Id INT = 1;
 -- /exclude
 SELECT * FROM Users WHERE Id = @Id
@@ -100,7 +100,7 @@ SELECT * FROM Users WHERE Id = @Id
 
 **After (UserRepo.GetById.pg.sql):**
 ```sql
---# exclude
+-- #exclude
 DECLARE @Id INT = 1; -- Preserved from original!
 -- /exclude
 SELECT * FROM Users WHERE Id = $1
@@ -108,7 +108,7 @@ SELECT * FROM Users WHERE Id = $1
 
 - **Naming**: Always `ClassName.QueryName.[extension]`. (e.g., `.pg.sql`, `.pgsql`).
 - **Location**: `.sql` and `.cs` files **MUST** be in the same directory.
-- **Exclusion Block Placement**: Prefer placing `--# exclude` blocks at the top of the file for setup/variable declarations (e.g., `DECLARE @Id ...`).
+- **Exclusion Block Placement**: Prefer placing `-- #exclude` blocks at the top of the file for setup/variable declarations (e.g., `DECLARE @Id ...`).
 
 ---
 
@@ -142,9 +142,9 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
 1.  **Doc comments are free**: Use `--` liberally. They are stripped during generation and won't affect binary size or performance.
 2.  **Implicit Conversion is REMOVED**: Always use `.Default` or `.Get()` when working with `SqlStrings` directly, or use `[Sql]` overloads.
-3.  **Exclusion blocks as Parameter Docs**: Use `--# exclude` blocks not just for test data, but to **document parameters** and their expected types/values for other developers.
+3.  **Exclusion blocks as Parameter Docs**: Use `-- #exclude` blocks not just for test data, but to **document parameters** and their expected types/values for other developers.
     ```sql
-    --# exclude
+    -- #exclude
     DECLARE @Status INT = 1; -- 1: Active, 0: Deleted
     DECLARE @Limit INT = 10;
     -- /exclude

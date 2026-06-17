@@ -3,8 +3,8 @@
 Patterns for index-friendly predicates, safe aggregations, and scalable write operations.
 Provider behavior differences are noted where they affect how to write the query.
 
-All examples follow the comment rule: full-line `--` comments outside `--# exclude` blocks;
-end-of-line comments only inside `--# exclude` where the whole block is stripped.
+All examples follow the comment rule: full-line `--` comments outside `-- #exclude` blocks;
+end-of-line comments only inside `-- #exclude` where the whole block is stripped.
 
 ---
 
@@ -36,7 +36,7 @@ does not match the column type. Every major DBMS will scan the column to perform
 the conversion rather than seek the index — no warning, no error.
 
 ```sql
---# exclude
+-- #exclude
 -- @account_id must be INT, not TEXT/VARCHAR.
 -- A string param causes an implicit cast on accounts.id for every row —
 -- the index seek is silently replaced by a scan.
@@ -227,7 +227,7 @@ Process in batches with a delay between iterations.
 --          Caller should delay ~100ms between iterations.
 --          Condition prevents re-deletion on re-run.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @cutoff_date <ts>  = '<utc_value>';
 DECLARE @batch_size  INT   = 300;
 -- /exclude
@@ -261,7 +261,7 @@ Keyset pagination seeks directly to the cursor position regardless of depth.
 --          random page access is required. Performance degrades linearly with
 --          @page_offset — consider keyset for feeds and sync endpoints.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @page_size   INT = 20;
 DECLARE @page_offset INT = 0;
 -- /exclude
@@ -282,7 +282,7 @@ OFFSET @page_offset ROWS FETCH NEXT @page_size ROWS ONLY
 --          Does not support random page access — suitable for infinite scroll,
 --          cursor APIs, and incremental sync endpoints.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @last_created_at <ts>  = NULL;   -- NULL = first page
 DECLARE @last_id         INT   = 0;
 DECLARE @page_size       INT   = 20;
@@ -349,7 +349,7 @@ When a query depends on a specific index, document it in the Notes header.
 --          Without this index the query performs a key lookup per matched row.
 --          Correct results either way; approximately 8× slower above 500k rows.
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @account_id  INT = 1;
 DECLARE @status      INT = 1;   -- 0=Draft 1=Issued 2=Paid 3=Void
 DECLARE @page_size   INT = 20;

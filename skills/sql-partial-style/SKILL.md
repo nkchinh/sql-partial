@@ -8,14 +8,14 @@ description: |
   Use this skill when:
   - Writing or reviewing content inside a .sql file for sql-partial
   - Advising on file headers, CTE documentation, or inline comments
-  - Deciding what belongs in --# exclude versus plain -- comments
+  - Deciding what belongs in -- #exclude versus plain -- comments
   - Optimizing SQL for production correctness and performance
   - User asks "how should I write this SQL", "is this query correct", "review this file"
 
   For file creation, class naming, and generator configuration,
   see the td-sql-partial skill — this skill covers content quality only.
 
-  Triggers: sql style, sql format, write sql, --# exclude, sql comment, sql review,
+  Triggers: sql style, sql format, write sql, -- #exclude, sql comment, sql review,
             query style, sql file header, sql partial content, CTE documentation.
 ---
 
@@ -29,13 +29,13 @@ decision in this guide.
 | Comment form | Example | Stripped? |
 |---|---|---|
 | Full-line `--` comment | `-- this is a note` (entire line) | ✅ Yes |
-| `--# exclude … -- /exclude` block | entire block | ✅ Yes |
+| `-- #exclude … -- /exclude` block | entire block | ✅ Yes |
 | `-- #testpart … -- /testpart` block | entire block | ✅ Yes |
 | End-of-line `--` comment | `col1,  -- note here` | ❌ No — survives into C# string |
 | Block comment | `/* this note */` | ❌ No — survives into C# string |
 | End-of-line comment **inside** exclude | `DECLARE @x INT = 1;  -- note` | ✅ Yes (whole block stripped) |
 
-**Practical rule**: outside of `--# exclude` blocks, use only full-line `--` comments
+**Practical rule**: outside of `-- #exclude` blocks, use only full-line `--` comments
 for all documentation. End-of-line comments and `/* */` comments survive the build
 and appear in the generated C# SQL string — avoid them outside exclude blocks.
 
@@ -48,7 +48,7 @@ They are stripped unconditionally and cost nothing at runtime.
 Use them for file headers, CTE descriptions, and any explanatory note
 placed on its own line before or between code lines.
 
-**`--# exclude … -- /exclude`** strips entire executable blocks.
+**`-- #exclude … -- /exclude`** strips entire executable blocks.
 Use it for `DECLARE` statements, temp table setup, and verification queries —
 code that runs in the editor but must not enter the C# string.
 Inside this block, end-of-line comments are safe because the whole block is stripped.
@@ -57,7 +57,7 @@ Inside this block, end-of-line comments are safe because the whole block is stri
 -- This line is documentation. Stripped. Never reaches C#.
 -- Another documentation line. Same.
 
---# exclude
+-- #exclude
 DECLARE @status INT = 1;    -- enum: 0=Draft 1=Active 2=Archived  (safe: whole block stripped)
 DECLARE @limit  INT = 20;   -- max 100; caller enforces            (safe: whole block stripped)
 -- /exclude
@@ -109,16 +109,16 @@ When in doubt, write it.
 
 ---
 
-## Rule 2 — `--# exclude` Contains Only Runnable Test Code
+## Rule 2 — `-- #exclude` Contains Only Runnable Test Code
 
-`--# exclude` is a lightweight development harness embedded in the file.
+`-- #exclude` is a lightweight development harness embedded in the file.
 Its content runs in a SQL editor and never appears in the generated C# string.
 Do not put narrative text inside it — the block signals "this SQL runs in development."
 
 ### Annotate every DECLARE — end-of-line comments are safe inside the block
 
 ```sql
---# exclude
+-- #exclude
 DECLARE @account_id  INT = 1;
 DECLARE @status      INT = 1;      -- 0=Pending 1=Active 2=Suspended 3=Cancelled
 DECLARE @page_size   INT = 20;     -- max 100; caller enforces before invoking
@@ -129,7 +129,7 @@ DECLARE @page_offset INT = 0;      -- 0-based; page 2 = 1 × @page_size
 Document UTC convention for timestamps inside the block:
 
 ```sql
---# exclude
+-- #exclude
 DECLARE @start_date <ts> = '<utc_value>';   -- inclusive; UTC; computed by caller
 DECLARE @end_date   <ts> = '<utc_value>';   -- exclusive; UTC; computed by caller
 -- /exclude
@@ -138,7 +138,7 @@ DECLARE @end_date   <ts> = '<utc_value>';   -- exclusive; UTC; computed by calle
 ### Setup and teardown for complex queries
 
 ```sql
---# exclude
+-- #exclude
 DECLARE @invoice_id INT = 42;
 CREATE TABLE #line_items (product_id INT, qty INT, unit_price DECIMAL(18,4));
 INSERT INTO #line_items VALUES (10, 2, 49.99), (11, 1, 129.00);
@@ -147,7 +147,7 @@ INSERT INTO #line_items VALUES (10, 2, 49.99), (11, 1, 129.00);
 WITH line_totals AS ( ... )
 SELECT ...
 
---# exclude
+-- #exclude
 DROP TABLE IF EXISTS #line_items;
 -- /exclude
 ```
@@ -157,7 +157,7 @@ DROP TABLE IF EXISTS #line_items;
 ## Rule 3 — Full-Line Comments Carry All Documentation Outside Exclude Blocks
 
 Because end-of-line comments survive the build, **all documentation outside
-`--# exclude` must be written as full-line `--` comments** — placed on the line
+`-- #exclude` must be written as full-line `--` comments** — placed on the line
 immediately before the code they describe.
 
 ```sql
@@ -331,10 +331,10 @@ SQL retrieves and mutates data. Everything else belongs in the application layer
 | Pagination limit | Hardcoded `LIMIT 100` | Pass `@page_size` with app-enforced max |
 | Status default | `COALESCE(@status, 1)` inside SQL | App passes an explicit value |
 
-Document the boundary contract in `--# exclude` (end-of-line comments safe here):
+Document the boundary contract in `-- #exclude` (end-of-line comments safe here):
 
 ```sql
---# exclude
+-- #exclude
 -- @cutoff_date: UTC; caller computes as UtcNow.AddDays(-90).
 -- Do not substitute a DB timestamp function:
 --   (1) server local time is not UTC
@@ -362,10 +362,10 @@ WHERE notes IS NOT NULL AND notes <> ''
 ```
 
 **Implicit type conversion** silently destroys sargability when a parameter type
-does not match the column type. Document type expectations in `--# exclude`:
+does not match the column type. Document type expectations in `-- #exclude`:
 
 ```sql
---# exclude
+-- #exclude
 -- @account_id must be INT, not TEXT/VARCHAR — a string param causes an implicit
 -- cast on accounts.id for every row, replacing the index seek with a full scan
 DECLARE @account_id INT = 1;
@@ -568,7 +568,7 @@ See `references/multi-dbms-guide.md` for the decision table and examples.
 -- Notes:   <Index requirements, business rules, intentional design choices.
 --           Omit only when the query is genuinely self-explanatory.>
 -- =============================================================================
---# exclude
+-- #exclude
 DECLARE @param1 <type> = <test_value>;   -- constraint or enum values
 DECLARE @param2 <type> = <test_value>;   -- UTC; computed by caller
 -- /exclude
@@ -608,16 +608,16 @@ OFFSET @param2 ROWS FETCH NEXT @param1 ROWS ONLY
 
 ```
 Comment correctness
-[ ] No end-of-line -- comments outside --# exclude blocks
+[ ] No end-of-line -- comments outside -- #exclude blocks
 [ ] No /* */ comments anywhere in the file
-[ ] All documentation outside --# exclude is written as full-line -- comments
+[ ] All documentation outside -- #exclude is written as full-line -- comments
 
 Content
 [ ] File header present: Query / Returns / Notes
 [ ] Notes records index requirements, business rules, or non-obvious design decisions
-[ ] --# exclude contains DECLARE for every parameter
+[ ] -- #exclude contains DECLARE for every parameter
 [ ] Each DECLARE annotated with constraints, enum values, or UTC convention
-[ ] No documentation prose inside --# exclude blocks
+[ ] No documentation prose inside -- #exclude blocks
 
 SQL Correctness
 [ ] No SELECT * — explicit column list
@@ -641,13 +641,13 @@ Documentation
 [ ] UNION ALL streams numbered [0], [1], [2] … in the CTE header
 [ ] Mirror conditions documented with a "keep in sync" note
 [ ] NOLOCK / dirty-read hints justified in Notes header
-[ ] Provider override files (.pg.sql / .ms.sql) have --# exclude synced from default
+[ ] Provider override files (.pg.sql / .ms.sql) have -- #exclude synced from default
 ```
 
 ---
 
 ## Reference Guides
 
-- **[Exclude Block Patterns](references/exclude-patterns.md)** — Templates for common `--# exclude` scenarios.
+- **[Exclude Block Patterns](references/exclude-patterns.md)** — Templates for common `-- #exclude` scenarios.
 - **[Multi-DBMS Decision Guide](references/multi-dbms-guide.md)** — Override decision flow; syntax differences; RETURNING, ON CONFLICT, MERGE examples.
 - **[Performance Patterns](references/performance-patterns.md)** — Sargable predicates, aggregation traps, N+1 avoidance, batch writes, pagination.

@@ -59,4 +59,5 @@ The generator emits these codes during build. If you encounter an Error, the bui
 | **SQLPG010** | `Warning` | Logic | Missing Default SQL & incomplete DBMS coverage. |
 | **SQLPG011** | `Warning` | Quality | SQL file is empty after cleaning comments/excludes. |
 | **SQLPG012** | `Warning` | Logic | Missing Default SQL in manual instantiation (`new SqlStrings`). |
+| **SQLPG013** | `Warning` | Quality | Mismatched `-- #exclude` or `-- /exclude` tags in SQL file. |
 | **SQLPG020** | `Warning` | Usage | Unrecognized SQL extension found (Disabled by default). |

@@ -20,12 +20,36 @@ public class GeneratorCoreTests
             SELECT * FROM Products;
             """;
 
-        var cleaned = SqlContentCleaner.Clean(sql);
+        var result = SqlContentCleaner.Clean(sql);
+        var cleaned = result.Content;
 
         Assert.DoesNotContain("Hidden", cleaned);
         Assert.DoesNotContain("Secret2", cleaned);
         Assert.Contains("SELECT * FROM Users;", cleaned);
         Assert.Contains("SELECT * FROM Products;", cleaned);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    [Fact]
+    public void SqlCleaner_ShouldReportMismatchedTags()
+    {
+        var sql = """
+            --#exclude
+            SELECT * FROM Hidden;
+            -- Orphaned opening tag
+            --#exclude
+            SELECT * FROM Users;
+            --/exclude
+            -- Orphaned closing tag
+            --/exclude
+            """;
+
+        var result = SqlContentCleaner.Clean(sql);
+
+        Assert.Equal(2, result.Diagnostics.Length);
+
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("opening tag") && d.Message.Contains("'-- /exclude'"));
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("closing tag") && d.Message.Contains("'-- #exclude'"));
     }
 
     [Fact]
@@ -37,7 +61,8 @@ public class GeneratorCoreTests
             SELECT 'a -- b';
             """;
 
-        var cleaned = SqlContentCleaner.Clean(sql);
+        var result = SqlContentCleaner.Clean(sql);
+        var cleaned = result.Content;
 
         // Should preserve indentation of active lines
         // and trailing comments on active lines
@@ -54,7 +79,8 @@ public class GeneratorCoreTests
     public void SqlCleaner_ShouldEscapeDoubleQuotesForVerbatimString()
     {
         var sql = "SELECT * FROM \"Users\" WHERE Name = 'O\"Reilly';";
-        var cleaned = SqlContentCleaner.Clean(sql);
+        var result = SqlContentCleaner.Clean(sql);
+        var cleaned = result.Content;
 
         // Verbatim string in C# escapes " as ""
         Assert.Equal("SELECT * FROM \"\"Users\"\" WHERE Name = 'O\"\"Reilly';", cleaned);
