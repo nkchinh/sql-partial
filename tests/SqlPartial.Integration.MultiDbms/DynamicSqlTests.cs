@@ -28,7 +28,7 @@ public class DynamicSqlTests
             @default: () => "SELECT DYNAMIC FALLBACK"
         );
         Assert.Equal("SELECT DYNAMIC PG", Execute(dynamicSql, "PostgreSql"));
-        Assert.Equal("SELECT DYNAMIC FALLBACK", Execute(dynamicSql, "SqlServer")); // Default
+        Assert.Equal("SELECT DYNAMIC FALLBACK", Execute(dynamicSql, "sqlServer")); // Default
     }
 
     [Fact]

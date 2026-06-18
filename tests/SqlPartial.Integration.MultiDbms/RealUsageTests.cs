@@ -4,7 +4,7 @@ namespace SqlPartial.Integration.MultiDbms;
 
 public partial class RealUsageTests
 {
-    public string SqlProviderName { get; set; } = "SqlServer";
+    public string SqlProviderName { get; set; } = "sqlServer";
 
     public string Execute([Sql] string query) => query;
 
@@ -21,7 +21,7 @@ public partial class RealUsageTests
         SqlProviderName = "PostgreSql";
         Assert.Equal("SELECT * FROM Users LIMIT $1;", Execute(sql));
 
-        SqlProviderName = "SqlServer";
+        SqlProviderName = "sqlServer";
         Assert.Equal("SELECT TOP (@Count) * FROM Users;", Execute(sql));
 
         SqlProviderName = "Unknown";

@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <SqlPartialProviders>.pg.sql:PostgreSql,.ms.sql:SqlServer</SqlPartialProviders>
+    <SqlPartialProviders>.pg.sql:PostgreSql,.ms.sql:sqlServer</SqlPartialProviders>
   </PropertyGroup>
 
   <ItemGroup>

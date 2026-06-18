@@ -24,7 +24,7 @@ public class InterfaceUsageTests
     [Fact]
     public void InterfaceMethod_Extension_ShouldResolveCorrectSql()
     {
-        var repo = new SqlRepositoryImpl { SqlProviderName = "SqlServer" };
+        var repo = new SqlRepositoryImpl { SqlProviderName = "sqlServer" };
         var sql = new SqlStrings(postgresql: "PG", sqlserver: "MS", @default: "DEF");
 
         // Call the generated extension method for the interface
@@ -44,7 +44,7 @@ public class InterfaceUsageTests
     [Fact]
     public void StaticExtension_Extension_ShouldResolveCorrectSql()
     {
-        var repo = new SqlRepositoryImpl { SqlProviderName = "SqlServer" };
+        var repo = new SqlRepositoryImpl { SqlProviderName = "sqlServer" };
         var sql = new SqlStrings(postgresql: "PG", sqlserver: "MS", @default: "DEF");
 
         // Call the generated extension method for the static extension

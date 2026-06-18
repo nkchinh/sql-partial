@@ -93,8 +93,9 @@ namespace SqlPartial
 
         foreach (var providerName in config.DistinctProviderNames)
         {
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
             sb.AppendLine($"        /// <summary>{providerName} specific SQL.</summary>");
-            sb.AppendLine($"        string {providerName} {{ get; }}");
+            sb.AppendLine($"        string {propName} {{ get; }}");
             sb.AppendLine();
         }
 
@@ -116,10 +117,11 @@ namespace SqlPartial
 
         foreach (var providerName in config.DistinctProviderNames)
         {
-            var fieldName = "_" + providerName.ToLowerInvariant();
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
+            var fieldName = "_" + propName.ToLowerInvariant();
             sb.AppendLine($"        private readonly {stringType} {fieldName};");
             sb.AppendLine($"        /// <summary>{providerName} specific SQL. Falls back to <see cref=\"Default\"/> when null.</summary>");
-            sb.AppendLine($"        public string {providerName} => {fieldName} ?? Default;");
+            sb.AppendLine($"        public string {propName} => {fieldName} ?? Default;");
             sb.AppendLine();
         }
 
@@ -130,8 +132,9 @@ namespace SqlPartial
 
         foreach (var providerName in providerNames)
         {
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
             if (!first) sb.Append(", ");
-            sb.Append($"{stringType} {providerName.ToLowerInvariant()} = null");
+            sb.Append($"{stringType} {propName.ToLowerInvariant()} = null");
             first = false;
         }
 
@@ -142,7 +145,8 @@ namespace SqlPartial
 
         foreach (var providerName in providerNames)
         {
-            sb.AppendLine($"            _{providerName.ToLowerInvariant()} = {providerName.ToLowerInvariant()};");
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
+            sb.AppendLine($"            _{propName.ToLowerInvariant()} = {propName.ToLowerInvariant()};");
         }
 
         sb.AppendLine("        }");
@@ -164,7 +168,8 @@ namespace SqlPartial
         sb.AppendLine("            {");
         foreach (var providerName in config.DistinctProviderNames)
         {
-            sb.AppendLine($"                case \"{providerName}\": return {providerName};");
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
+            sb.AppendLine($"                case \"{providerName}\": return {propName};");
         }
         sb.AppendLine("                default: return Default;");
         sb.AppendLine("            }");
@@ -185,10 +190,11 @@ namespace SqlPartial
 
         foreach (var providerName in config.DistinctProviderNames)
         {
-            var fieldName = "_" + providerName.ToLowerInvariant() + "Factory";
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
+            var fieldName = "_" + propName.ToLowerInvariant() + "Factory";
             sb.AppendLine($"        private readonly {funcType} {fieldName};");
             sb.AppendLine($"        /// <summary>{providerName} specific SQL. Evalulated via factory, falls back to <see cref=\"Default\"/>.</summary>");
-            sb.AppendLine($"        public string {providerName} => {fieldName}?.Invoke() ?? Default;");
+            sb.AppendLine($"        public string {propName} => {fieldName}?.Invoke() ?? Default;");
             sb.AppendLine();
         }
 
@@ -198,8 +204,9 @@ namespace SqlPartial
 
         foreach (var providerName in config.DistinctProviderNames)
         {
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
             if (!dynamicFirst) sb.Append(", ");
-            sb.Append($"{funcType} {providerName.ToLowerInvariant()} = null");
+            sb.Append($"{funcType} {propName.ToLowerInvariant()} = null");
             dynamicFirst = false;
         }
 
@@ -210,7 +217,8 @@ namespace SqlPartial
 
         foreach (var providerName in config.DistinctProviderNames)
         {
-            sb.AppendLine($"            _{providerName.ToLowerInvariant()}Factory = {providerName.ToLowerInvariant()};");
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
+            sb.AppendLine($"            _{propName.ToLowerInvariant()}Factory = {propName.ToLowerInvariant()};");
         }
 
         sb.AppendLine("        }");
@@ -230,7 +238,8 @@ namespace SqlPartial
 
         foreach (var providerName in config.DistinctProviderNames)
         {
-            sb.AppendLine($"                case \"{providerName}\": return {providerName};");
+            var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
+            sb.AppendLine($"                case \"{providerName}\": return {propName};");
         }
 
         sb.AppendLine("                default: return Default;");
