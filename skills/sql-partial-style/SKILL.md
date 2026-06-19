@@ -1,5 +1,6 @@
 ---
 name: sql-partial-style
+source: https://github.com/nkchinh/sql-partial
 description: |
   SQL code style and writing standards for .sql files used with SqlPartial.Generator.
   Combines sql-partial's build-time features with production SQL best practices.

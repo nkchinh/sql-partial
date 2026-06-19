@@ -1,5 +1,6 @@
 ---
 name: sql-partial
+source: https://github.com/nkchinh/sql-partial
 description: |
   Guides the agent in managing SQL partial files for SqlPartial.Generator.
   Triggers when:
