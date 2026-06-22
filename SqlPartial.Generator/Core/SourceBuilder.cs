@@ -648,7 +648,10 @@ namespace SqlPartial
             }
             else if (IsSqlAttribute(param))
             {
-                sb.Append($"{param.Name}.{getMethodName}({providerAccess})");
+                bool mayBeNull = isRefType && nullableEnabled
+                    && param.HasExplicitDefaultValue && param.ExplicitDefaultValue == null;
+                var accessor = mayBeNull ? "?." : ".";
+                sb.Append($"{param.Name}{accessor}{getMethodName}({providerAccess})");
             }
             else
             {
