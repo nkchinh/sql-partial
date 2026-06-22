@@ -91,13 +91,48 @@ await repo.Execute(builder);
 string sql = builder.Build("PostgreSql");
 ```
 
-### 3. Usage Pattern Selection
-| Pattern | Best For... | Implementation |
-| :--- | :--- | :--- |
-| **Auto** | Large, complex queries | Create `.sql` files; use generated `SqlStrings` |
-| **Manual Static** | Simple one-liners | Use `new SqlStrings(@default: "sql")` |
-| **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(@default: () => ...)` |
-| **Builder** | Composing SQL from parts | Use `new SqlStringBuilder().Append(...).Append(...)` |
+### 3. Pattern Selection Guide
+
+Câu hỏi đầu tiên: **cấu trúc SQL có cố định lúc compile không?**
+
+#### SQL tĩnh (cấu trúc cố định)
+
+File `.sql` là lựa chọn mặc định cho mọi SQL tĩnh — từ đơn giản đến rất phức tạp — vì IDE hỗ trợ đầy đủ: syntax highlight, schema validation, test trực tiếp trên IDE.
+
+```
+SQL tĩnh
+├─ Syntax tương thích tất cả DBMS → một file .sql chung
+├─ Syntax khác nhau theo DBMS     → file riêng (.pg.sql, .ms.sql...)
+└─ Quá nhỏ để tạo file (true one-liner)
+   ├─ Cùng cho mọi DBMS  → new SqlStrings(@default: "...")
+   └─ Khác theo DBMS     → new SqlStrings(postgresql: "...", sqlserver: "...")
+```
+
+> File `.sql` phù hợp SQL ở mọi mức độ phức tạp. Chỉ dùng inline string khi lợi ích của IDE không đáng bằng chi phí tạo thêm file.
+
+#### SQL động (cấu trúc thay đổi lúc runtime)
+
+```
+SQL động
+├─ Ghép các đoạn ISqlString cố định (base + filter + ORDER BY...)
+│  → SqlStringBuilder
+├─ Nhúng giá trị runtime vào cấu trúc SQL (tên bảng, partition, timestamp)
+│  → SqlDynamic  (factory Func<string> được gọi mỗi lần .Get())
+└─ WHERE/JOIN phức tạp với điều kiện hoàn toàn động
+   → Thư viện query builder (SqlKata, Dapper, v.v.)
+```
+
+**SqlStringBuilder vs SqlDynamic:**
+- `SqlStringBuilder`: ghép *nhiều* `ISqlString` đã biết thành một; DBMS resolve lúc `Build()`.
+- `SqlDynamic`: *một* SQL nhưng giá trị bên trong được tính lại mỗi lần (e.g., tên bảng theo tháng).
+
+**Tóm tắt nhanh:**
+
+| | Tĩnh | Động |
+|---|---|---|
+| Phức tạp, cần IDE | `.sql` file | SqlStringBuilder (ghép) |
+| Đơn giản, inline | `new SqlStrings()` | `new SqlDynamic()` |
+| Điều kiện hoàn toàn động | — | Query builder |
 
 ### 4. The Migration & Transition Rule (CRITICAL)
 If you are moving from a single DBMS (e.g., just default) to supporting multiple:

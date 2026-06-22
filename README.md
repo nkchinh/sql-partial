@@ -304,21 +304,30 @@ Example: `GetUsers.pg.sql` (length 7) will be chosen over `GetUsers.sql` (length
 
 ## Usage Patterns
 
-SqlPartial supports three main ways to author and consume SQL, all unified under the `ISqlString` interface.
+All patterns are unified under the `ISqlString` interface. Choose based on one question: **is the SQL structure fixed at compile time?**
 
-### 1. Auto (From `.sql` files)
-Best for large, complex queries. You get full IDE support (syntax highlighting, formatting).
-- **Setup:** Create `ClassName.QueryName.sql` (or `.pg.sql`, `.ms.sql`, etc.)
-- **Consumption:** Use the generated static properties.
-```csharp
-await QueryAsync(SqlGetActiveUsers);
+### Static SQL (structure known at compile time)
+
+#### From `.sql` files — the default choice
+`.sql` files suit any SQL from simple to highly complex. The key advantage is full IDE support: syntax highlighting, schema validation, and the ability to run the query directly in your SQL editor.
+
+```
+Same syntax for all DBMS  → single ClassName.QueryName.sql
+Different syntax per DBMS  → ClassName.QueryName.pg.sql + ClassName.QueryName.ms.sql
 ```
 
-### 2. Manual Static (Inline strings)
-Best for simple one-liners where a separate file would be overkill.
-- **Consumption:** Use `.Default` or `.Get()` or `[Sql]` overloads. **Implicit conversion to string is removed.**
 ```csharp
-// Manual Multi-DBMS in code
+await QueryAsync(SqlGetActiveUsers);  // generated from your .sql file(s)
+```
+
+#### Inline strings — when a file isn't worth it
+Only for true one-liners where the overhead of a separate file outweighs the IDE benefit.
+
+```csharp
+// Same SQL for all providers
+await QueryAsync(new SqlStrings(@default: "SELECT name FROM users"));
+
+// Different SQL per provider
 await QueryAsync(new SqlStrings(
     postgresql: "SELECT name FROM users LIMIT 10",
     sqlserver:  "SELECT TOP 10 name FROM users",
@@ -326,21 +335,23 @@ await QueryAsync(new SqlStrings(
 ));
 ```
 
-### 3. Manual Dynamic (Logic-based)
-Best for SQL that needs runtime calculations (table partitioning, dynamic filtering).
-- **Consumption:** Use `SqlDynamic` with factories (`Func<string>`).
+### Dynamic SQL (structure changes at runtime)
+
+#### `SqlDynamic` — runtime values embedded in SQL structure
+Use when the SQL structure itself is computed at runtime (table name, partition, timestamp):
+
 ```csharp
 var dynamicQuery = new SqlDynamic(
     postgresql: () => $"SELECT * FROM sales_{DateTime.Now:yyyyMM}",
     sqlserver:  () => $"SELECT * FROM sales_{DateTime.Now:yyyyMM}",
-    @default: () => "SELECT * FROM sales"
+    @default:   () => "SELECT * FROM sales"
 );
 await QueryAsync(dynamicQuery);
 ```
 
-### 4. Builder (SQL Composition)
-Best for assembling a final SQL string from multiple `ISqlString` parts — e.g., a base query, a filter clause, and an ORDER BY, each potentially DBMS-specific.  
-The DBMS provider is **not needed while building**; it is resolved only at the final `Build()` call.
+#### `SqlStringBuilder` — assembling SQL from `ISqlString` parts
+
+Use when the final query is composed of multiple pieces — base query, filter clause, ORDER BY — each potentially DBMS-specific. The DBMS provider is **not needed while building**; it is resolved only at `Build()`.
 ```csharp
 var builder = new SqlStringBuilder()
     .Append(UserRepo.SqlGetActive)      // generated SqlStrings (from .sql files)
