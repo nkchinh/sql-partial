@@ -247,9 +247,133 @@ namespace SqlPartial
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine();
+
+        // ── SqlStringBuilder Class ───────────────────────────────────────
+        AppendSqlStringBuilder(sb, visibility);
+
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    private static void AppendSqlStringBuilder(StringBuilder sb, string visibility)
+    {
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Builds a SQL string by accumulating <see cref=\"ISqlString\"/> segments.");
+        sb.AppendLine($"    /// The DBMS provider is not required until <see cref=\"Build\"/>.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    {visibility} sealed class SqlStringBuilder");
+        sb.AppendLine("    {");
+        sb.AppendLine("        private ISqlString[] _segments;");
+        sb.AppendLine("        private int _count;");
+        sb.AppendLine("        private readonly object _syncRoot;");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Initializes with default capacity.</summary>");
+        sb.AppendLine("        public SqlStringBuilder() : this(4) { }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Initializes with the given initial capacity.</summary>");
+        sb.AppendLine("        public SqlStringBuilder(int capacity)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (capacity < 0) throw new System.ArgumentOutOfRangeException(\"capacity\");");
+        sb.AppendLine("            _segments = new ISqlString[capacity == 0 ? 4 : capacity];");
+        sb.AppendLine("            _count = 0;");
+        sb.AppendLine("            _syncRoot = new object();");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Number of segments appended so far.</summary>");
+        sb.AppendLine("        public int Count { get { lock (_syncRoot) { return _count; } } }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Appends an <see cref=\"ISqlString\"/> segment.</summary>");
+        sb.AppendLine("        public SqlStringBuilder Append(ISqlString sql)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (sql == null) throw new System.ArgumentNullException(\"sql\");");
+        sb.AppendLine("            lock (_syncRoot) { EnsureCapacity(1); _segments[_count++] = sql; }");
+        sb.AppendLine("            return this;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Appends a literal string, resolved identically for all providers.</summary>");
+        sb.AppendLine("        public SqlStringBuilder Append(string sql)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (sql == null) throw new System.ArgumentNullException(\"sql\");");
+        sb.AppendLine("            lock (_syncRoot) { EnsureCapacity(1); _segments[_count++] = new SqlStrings(sql); }");
+        sb.AppendLine("            return this;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Appends an <see cref=\"ISqlString\"/> segment followed by a newline.</summary>");
+        sb.AppendLine("        public SqlStringBuilder AppendLine(ISqlString sql)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (sql == null) throw new System.ArgumentNullException(\"sql\");");
+        sb.AppendLine("            lock (_syncRoot)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                EnsureCapacity(2);");
+        sb.AppendLine("                _segments[_count++] = sql;");
+        sb.AppendLine("                _segments[_count++] = new SqlStrings(System.Environment.NewLine);");
+        sb.AppendLine("            }");
+        sb.AppendLine("            return this;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Appends a literal string followed by a newline.</summary>");
+        sb.AppendLine("        public SqlStringBuilder AppendLine(string sql)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (sql == null) throw new System.ArgumentNullException(\"sql\");");
+        sb.AppendLine("            lock (_syncRoot)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                EnsureCapacity(2);");
+        sb.AppendLine("                _segments[_count++] = new SqlStrings(sql);");
+        sb.AppendLine("                _segments[_count++] = new SqlStrings(System.Environment.NewLine);");
+        sb.AppendLine("            }");
+        sb.AppendLine("            return this;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Appends a newline segment.</summary>");
+        sb.AppendLine("        public SqlStringBuilder AppendLine()");
+        sb.AppendLine("        {");
+        sb.AppendLine("            lock (_syncRoot) { EnsureCapacity(1); _segments[_count++] = new SqlStrings(System.Environment.NewLine); }");
+        sb.AppendLine("            return this;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Removes all appended segments.</summary>");
+        sb.AppendLine("        public SqlStringBuilder Clear()");
+        sb.AppendLine("        {");
+        sb.AppendLine("            lock (_syncRoot) { System.Array.Clear(_segments, 0, _count); _count = 0; }");
+        sb.AppendLine("            return this;");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>");
+        sb.AppendLine("        /// Resolves all segments for <paramref name=\"providerName\"/> and concatenates them.");
+        sb.AppendLine("        /// Segments without a specific override fall back to their default SQL.");
+        sb.AppendLine("        /// </summary>");
+        sb.AppendLine("        public string Build(string providerName)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            lock (_syncRoot)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                if (_count == 0) return string.Empty;");
+        sb.AppendLine("                var result = new System.Text.StringBuilder();");
+        sb.AppendLine("                for (int i = 0; i < _count; i++)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    var seg = _segments[i];");
+        sb.AppendLine("                    if (seg != null) result.Append(seg.Get(providerName));");
+        sb.AppendLine("                }");
+        sb.AppendLine("                return result.ToString();");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Returns the result for the default (fallback) provider.</summary>");
+        sb.AppendLine("        public override string ToString() { return Build(string.Empty); }");
+        sb.AppendLine();
+        sb.AppendLine("        private void EnsureCapacity(int needed)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            int required = _count + needed;");
+        sb.AppendLine("            if (required > _segments.Length)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                int newLen = System.Math.Max(_segments.Length * 2, required);");
+        sb.AppendLine("                var arr = new ISqlString[newLen];");
+        sb.AppendLine("                System.Array.Copy(_segments, 0, arr, 0, _count);");
+        sb.AppendLine("                _segments = arr;");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
     }
 
     // ── Partial class ────────────────────────────────────────────────────
@@ -348,6 +472,9 @@ namespace SqlPartial
         var dynamicType = config.UseSharedNamespace != null ? $"{config.UseSharedNamespace}.SqlDynamic" :
                (config.EmitSharedNamespace != null ? $"{config.EmitSharedNamespace}.SqlDynamic" : $"{config.SqlStringsNamespace}.SqlDynamic");
 
+        var builderType = config.UseSharedNamespace != null ? $"{config.UseSharedNamespace}.SqlStringBuilder" :
+               (config.EmitSharedNamespace != null ? $"{config.EmitSharedNamespace}.SqlStringBuilder" : $"{config.SqlStringsNamespace}.SqlStringBuilder");
+
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
 
@@ -378,6 +505,7 @@ namespace SqlPartial
             {
                 EmitOverload(sb, method, type, true, baseVisibility, stringsType);
                 EmitOverload(sb, method, type, true, baseVisibility, dynamicType);
+                EmitOverload(sb, method, type, true, baseVisibility, builderType, getMethodName: "Build", isRefType: true);
             }
 
             sb.AppendLine("    }");
@@ -391,6 +519,7 @@ namespace SqlPartial
             {
                 EmitOverload(sb, method, type, false, baseVisibility, stringsType);
                 EmitOverload(sb, method, type, false, baseVisibility, dynamicType);
+                EmitOverload(sb, method, type, false, baseVisibility, builderType, getMethodName: "Build", isRefType: true);
             }
 
             sb.AppendLine("    }");
@@ -401,7 +530,8 @@ namespace SqlPartial
     }
 
     private static void EmitOverload(
-        StringBuilder sb, IMethodSymbol method, ITypeSymbol type, bool isExtension, string baseVisibility, string sqlTypeName)
+        StringBuilder sb, IMethodSymbol method, ITypeSymbol type, bool isExtension, string baseVisibility,
+        string sqlTypeName, string getMethodName = "Get", bool isRefType = false)
     {
         var accessibility = method.DeclaredAccessibility.ToString().ToLower();
 
@@ -460,7 +590,10 @@ namespace SqlPartial
             if (param.HasExplicitDefaultValue)
             {
                 sb.Append(" = ");
-                sb.Append(FormatDefaultValue(param));
+                if (IsSqlAttribute(param) && param.ExplicitDefaultValue == null)
+                    sb.Append(isRefType ? "null" : "default");
+                else
+                    sb.Append(FormatDefaultValue(param));
             }
 
             isFirst = false;
@@ -511,7 +644,7 @@ namespace SqlPartial
             }
             else if (IsSqlAttribute(param))
             {
-                sb.Append($"{param.Name}.Get({providerAccess})");
+                sb.Append($"{param.Name}.{getMethodName}({providerAccess})");
             }
             else
             {

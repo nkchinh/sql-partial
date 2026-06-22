@@ -241,6 +241,107 @@ namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
         Assert.Contains("int? val2 = 5", overloads);
     }
 
+    [Fact]
+    public void SourceBuilder_BuildOverloads_ShouldGenerateBuilderOverload()
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public string Execute([Sql] string query) => query;
+    }
+}
+
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+";
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Execute");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains("internal string Execute(TestNamespace.Sql.SqlStringBuilder query)", overloads);
+        Assert.Contains("return Execute(query.Build(this.SqlProviderName));", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_BuilderOverload_ShouldUseNullForDefaultValue()
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public string Execute([Sql] string query = null) => query;
+    }
+}
+
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+";
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Execute");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        // [Sql] + struct → default; [Sql] + class (builder) → null
+        Assert.Contains("(TestNamespace.Sql.SqlStrings query = default)", overloads);
+        Assert.Contains("(TestNamespace.Sql.SqlDynamic query = default)", overloads);
+        Assert.Contains("(TestNamespace.Sql.SqlStringBuilder query = null)", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_BuilderOverload_ShouldHandleInterfaces()
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    public interface IRepo
+    {
+        void Query([Sql] string sql);
+    }
+}
+
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+";
+        var (type, method) = GetSymbols(source, "TestNamespace.IRepo", "Query");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlStringBuilder sql)", overloads);
+        Assert.Contains("self.Query(sql.Build(self.SqlProviderName))", overloads);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildOverloads_BuilderOverload_ShouldUseSharedNamespace()
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public void Query([Sql] string query) { }
+    }
+}
+
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+";
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
+        var config = new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true, false, "SharedSql");
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains("public void Query(SharedSql.SqlStringBuilder query)", overloads);
+        Assert.Contains("query.Build(this.SqlProviderName)", overloads);
+    }
+
     private (ITypeSymbol, IMethodSymbol) GetSymbols(string source, string typeName, string methodName)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);

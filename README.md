@@ -338,6 +338,31 @@ var dynamicQuery = new SqlDynamic(
 await QueryAsync(dynamicQuery);
 ```
 
+### 4. Builder (SQL Composition)
+Best for assembling a final SQL string from multiple `ISqlString` parts — e.g., a base query, a filter clause, and an ORDER BY, each potentially DBMS-specific.  
+The DBMS provider is **not needed while building**; it is resolved only at the final `Build()` call.
+```csharp
+var builder = new SqlStringBuilder()
+    .Append(UserRepo.SqlGetActive)      // generated SqlStrings (from .sql files)
+    .Append(" WHERE status = @status")  // literal — same for all providers
+    .Append(new SqlStrings(             // inline static SQL per provider
+        postgresql: "LIMIT $1",
+        sqlserver:  "FETCH NEXT @n ROWS ONLY",
+        @default:   ""))
+    .AppendLine(new SqlDynamic(         // inline dynamic SQL (evaluated at Build time)
+        postgresql: () => $"-- generated {DateTime.Now:yyyy-MM-dd}",
+        @default:   () => ""));
+
+// Pass to a [Sql] overload — provider resolved at call site
+await repo.Execute(builder);
+
+// Or resolve manually for a specific provider
+string pg  = builder.Build("PostgreSql");
+string ms  = builder.Build("SqlServer");
+```
+
+`SqlStringBuilder` is thread-safe: `Append`/`AppendLine`/`Clear` and `Build` can be called from multiple threads. `ToString()` resolves against the default (fallback) provider.
+
 ---
 
 ## Generic Execution Pattern

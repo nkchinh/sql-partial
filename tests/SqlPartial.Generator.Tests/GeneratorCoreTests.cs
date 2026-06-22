@@ -115,6 +115,48 @@ public class GeneratorCoreTests
     }
 
     [Fact]
+    public void SourceBuilder_BuildSqlStringsStruct_ShouldGenerateSqlStringBuilder()
+    {
+        var config = new GeneratorConfig(
+            "MyProject",
+            [new SqlProvider(".pg.sql", "PostgreSql")],
+            [],
+            "MyProject.Sql",
+            null,
+            true);
+
+        var source = SourceBuilder.BuildSqlStringsStruct(config, true);
+
+        Assert.Contains("internal sealed class SqlStringBuilder", source);
+        Assert.Contains("public SqlStringBuilder Append(ISqlString sql)", source);
+        Assert.Contains("public SqlStringBuilder Append(string sql)", source);
+        Assert.Contains("public SqlStringBuilder AppendLine(ISqlString sql)", source);
+        Assert.Contains("public SqlStringBuilder AppendLine(string sql)", source);
+        Assert.Contains("public SqlStringBuilder AppendLine()", source);
+        Assert.Contains("public SqlStringBuilder Clear()", source);
+        Assert.Contains("public string Build(string providerName)", source);
+        Assert.Contains("public int Count", source);
+    }
+
+    [Fact]
+    public void SourceBuilder_BuildSqlStringsStruct_ShouldGeneratePublicBuilderWhenSharedNamespace()
+    {
+        var config = new GeneratorConfig(
+            "MyProject",
+            [],
+            [],
+            "MyProject.Sql",
+            null,
+            true,
+            false,
+            "SharedSql");
+
+        var source = SourceBuilder.BuildSqlStringsStruct(config, true);
+
+        Assert.Contains("public sealed class SqlStringBuilder", source);
+    }
+
+    [Fact]
     public void SourceBuilder_BuildSqlStringsStruct_ShouldBePublicWhenEmittingSharedNamespace()
     {
         var config = new GeneratorConfig(

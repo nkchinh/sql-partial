@@ -197,6 +197,16 @@ Generated once per project. Implements `ISqlString` and allows for lazy-evaluate
 - **Zero Caching**: Evaluates the factory every time a property is accessed. This keeps the struct extremely lightweight (no heap-allocated `Lazy<T>` objects) and ensures truly dynamic behavior (e.g., embedding timestamps).
 - **Generic Support**: Designed to be used as a generic constraint: `where TSql : struct, ISqlString`.
 
+### `SqlStringBuilder` class
+
+Generated once per project alongside `ISqlString`, `SqlStrings`, and `SqlDynamic`. Provides a fluent, thread-safe way to compose a SQL string from multiple `ISqlString` segments, deferring DBMS resolution to `Build(providerName)`.
+
+- **Deferred Resolution**: Segments are stored as `ISqlString` references. No provider is needed during `Append` — it is supplied only at `Build()` time.
+- **Thread-Safety**: All mutations (`Append`, `AppendLine`, `Clear`) and `Build()` are protected by an internal lock, allowing safe concurrent reads after construction.
+- **Fluent API**: All mutating methods return `this` for chaining.
+- **`[Sql]` Overload**: The generator emits a `SqlStringBuilder` overload alongside the `SqlStrings` and `SqlDynamic` overloads for every `[Sql]`-annotated method. The overload calls `.Build(SqlProviderName)` instead of `.Get(SqlProviderName)`.
+- **Storage trade-off**: Storing heterogeneous `ISqlString` values requires boxing struct implementations into the `ISqlString[]` segment array. This is a one-time cost at `Append` time; `Build()` itself causes no additional allocation beyond the output `StringBuilder`.
+
 ### Partial Class
 
 Each `(Namespace, ClassName)` generates a hint file `ClassName.{hash}.g.cs`. The hash is calculated from the fully-qualified class name to avoid collisions when two classes with the same name exist in different namespaces.
@@ -205,7 +215,15 @@ Generated properties are `private static readonly` and prefixed with `Sql` (e.g.
 
 ### Method Overloads
 
-When a method parameter is marked with `[Sql]`, the generator produces a generic overload in the same class (or an extension class for interfaces). This overload resolves the provider-specific string at runtime using the type's `SqlProviderName` property.
+When a method parameter is marked with `[Sql]`, the generator produces **three overloads** in the same class (or an extension class for interfaces), one per SQL type:
+
+| Overload parameter type | Resolution call | Default value |
+|---|---|---|
+| `SqlStrings` | `.Get(SqlProviderName)` | `default` (struct) |
+| `SqlDynamic` | `.Get(SqlProviderName)` | `default` (struct) |
+| `SqlStringBuilder` | `.Build(SqlProviderName)` | `null` (class) |
+
+Each overload resolves the provider-specific string at runtime using the type's `SqlProviderName` property.
 
 ---
 

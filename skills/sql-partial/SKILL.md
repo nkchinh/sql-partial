@@ -9,6 +9,7 @@ description: |
   - Configuring SqlPartial.Generator in .csproj.
   - Refactoring SQL file organization or naming.
   - Troubleshooting generator issues (missing properties, namespace mismatches).
+  - Composing SQL from multiple ISqlString parts using SqlStringBuilder.
 ---
 
 # SqlPartial.Generator Skill
@@ -68,12 +69,35 @@ public async Task<T> QueryAsync<TSql>(TSql sql) where TSql : struct, ISqlString 
 }
 ```
 
+**Option C: Builder (SQL Composition)**
+Use `SqlStringBuilder` to assemble a query from multiple `ISqlString` segments. The DBMS is not required during composition — only at the final `Build()` or when passing to a `[Sql]` overload.
+- **When to use**: The final SQL is assembled from parts (base query + filter + order), each potentially DBMS-specific.
+
+```csharp
+var builder = new SqlStringBuilder()
+    .Append(UserRepo.SqlGetActive)           // generated SqlStrings (from .sql files)
+    .Append(" WHERE status = @status")       // literal — same for all providers
+    .Append(new SqlStrings(                  // inline static SQL per provider
+        postgresql: "LIMIT $1",
+        sqlserver:  "FETCH NEXT @n ROWS ONLY",
+        @default:   ""))
+    .Append(new SqlDynamic(                  // inline dynamic SQL (evaluated at Build time)
+        postgresql: () => BuildPgHint(),
+        @default:   () => ""));
+
+// Pass directly to a [Sql]-annotated method — provider resolved at call site
+await repo.Execute(builder);
+// Or resolve manually:
+string sql = builder.Build("PostgreSql");
+```
+
 ### 3. Usage Pattern Selection
 | Pattern | Best For... | Implementation |
 | :--- | :--- | :--- |
 | **Auto** | Large, complex queries | Create `.sql` files; use generated `SqlStrings` |
 | **Manual Static** | Simple one-liners | Use `new SqlStrings(@default: "sql")` |
 | **Manual Dynamic** | Logic/Calculation based | Use `new SqlDynamic(@default: () => ...)` |
+| **Builder** | Composing SQL from parts | Use `new SqlStringBuilder().Append(...).Append(...)` |
 
 ### 4. The Migration & Transition Rule (CRITICAL)
 If you are moving from a single DBMS (e.g., just default) to supporting multiple:

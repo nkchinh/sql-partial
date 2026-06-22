@@ -55,4 +55,36 @@ public class InterfaceUsageTests
         result = repo.QueryExt(sql);
         Assert.Equal("PG", result);
     }
+
+    [Fact]
+    public void BuilderOverload_ShouldResolveAtCallTime()
+    {
+        var repo = new SqlRepositoryImpl();
+        var builder = new SqlStringBuilder()
+            .Append(new SqlStrings(postgresql: "PG", sqlserver: "MS", @default: "DEF"))
+            .Append(" LIMIT 10");
+
+        repo.SqlProviderName = "PostgreSql";
+        Assert.Equal("PG LIMIT 10", repo.Query(builder));
+
+        repo.SqlProviderName = "sqlServer";
+        Assert.Equal("MS LIMIT 10", repo.Query(builder));
+
+        repo.SqlProviderName = "Unknown";
+        Assert.Equal("DEF LIMIT 10", repo.Query(builder));
+    }
+
+    [Fact]
+    public void BuilderOverload_Interface_ShouldResolveAtCallTime()
+    {
+        var repo = new SqlRepositoryImpl();
+        var builder = new SqlStringBuilder()
+            .Append(new SqlStrings(postgresql: "PG-EXT", @default: "DEF-EXT"));
+
+        repo.SqlProviderName = "PostgreSql";
+        Assert.Equal("PG-EXT", repo.QueryExt(builder));
+
+        repo.SqlProviderName = "Unknown";
+        Assert.Equal("DEF-EXT", repo.QueryExt(builder));
+    }
 }
