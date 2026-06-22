@@ -501,17 +501,19 @@ namespace SqlPartial
             sb.AppendLine($"    public static partial class {type.Name}SqlExtensions");
             sb.AppendLine("    {");
 
+            var nullable = supportsNullable && config.NullableEnabled;
             foreach (var method in methods)
             {
                 EmitOverload(sb, method, type, true, baseVisibility, stringsType);
                 EmitOverload(sb, method, type, true, baseVisibility, dynamicType);
-                EmitOverload(sb, method, type, true, baseVisibility, builderType, getMethodName: "Build", isRefType: true);
+                EmitOverload(sb, method, type, true, baseVisibility, builderType, getMethodName: "Build", isRefType: true, nullableEnabled: nullable);
             }
 
             sb.AppendLine("    }");
         }
         else
         {
+            var nullable = supportsNullable && config.NullableEnabled;
             sb.AppendLine($"    partial {type.TypeKind.ToString().ToLower()} {type.Name}");
             sb.AppendLine("    {");
 
@@ -519,7 +521,7 @@ namespace SqlPartial
             {
                 EmitOverload(sb, method, type, false, baseVisibility, stringsType);
                 EmitOverload(sb, method, type, false, baseVisibility, dynamicType);
-                EmitOverload(sb, method, type, false, baseVisibility, builderType, getMethodName: "Build", isRefType: true);
+                EmitOverload(sb, method, type, false, baseVisibility, builderType, getMethodName: "Build", isRefType: true, nullableEnabled: nullable);
             }
 
             sb.AppendLine("    }");
@@ -531,7 +533,7 @@ namespace SqlPartial
 
     private static void EmitOverload(
         StringBuilder sb, IMethodSymbol method, ITypeSymbol type, bool isExtension, string baseVisibility,
-        string sqlTypeName, string getMethodName = "Get", bool isRefType = false)
+        string sqlTypeName, string getMethodName = "Get", bool isRefType = false, bool nullableEnabled = false)
     {
         var accessibility = method.DeclaredAccessibility.ToString().ToLower();
 
@@ -580,7 +582,9 @@ namespace SqlPartial
 
             if (IsSqlAttribute(param))
             {
-                sb.Append($"{sqlTypeName} {param.Name}");
+                var typeSuffix = isRefType && nullableEnabled
+                    && param.HasExplicitDefaultValue && param.ExplicitDefaultValue == null ? "?" : "";
+                sb.Append($"{sqlTypeName}{typeSuffix} {param.Name}");
             }
             else
             {

@@ -287,10 +287,10 @@ namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
-        // [Sql] + struct → default; [Sql] + class (builder) → null
+        // [Sql] + struct → default; [Sql] + class (builder) → null, with ? when nullable enabled
         Assert.Contains("(TestNamespace.Sql.SqlStrings query = default)", overloads);
         Assert.Contains("(TestNamespace.Sql.SqlDynamic query = default)", overloads);
-        Assert.Contains("(TestNamespace.Sql.SqlStringBuilder query = null)", overloads);
+        Assert.Contains("(TestNamespace.Sql.SqlStringBuilder? query = null)", overloads);
     }
 
     [Fact]
