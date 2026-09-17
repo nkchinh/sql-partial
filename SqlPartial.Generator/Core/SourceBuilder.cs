@@ -498,7 +498,7 @@ namespace SqlPartial
 
         if (type.TypeKind == TypeKind.Interface)
         {
-            sb.AppendLine($"    public static partial class {type.Name}SqlExtensions");
+            sb.AppendLine($"    static partial class {type.Name}SqlExtensions");
             sb.AppendLine("    {");
 
             var nullable = supportsNullable && config.NullableEnabled;

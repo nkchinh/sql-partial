@@ -119,6 +119,9 @@ namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
 
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
+        Assert.Contains("static partial class IRepoSqlExtensions", overloads);
+        Assert.DoesNotContain("public static partial class IRepoSqlExtensions", overloads);
+
         // Interfaces use extension class which must be static
         Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlStrings query)", overloads);
         Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlDynamic query)", overloads);
