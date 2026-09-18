@@ -18,8 +18,11 @@ When using VS Code with the C# Dev Kit extension, the Incremental Generator may 
 **Status:** Under Consideration
 
 The current version of the generator does not fully support types declared inside other classes (Nested Classes).
-- **Behavior:** The generated partial class may have an incorrect hierarchy, leading to compilation errors.
-- **Recommendation:** Keep classes using `[SqlPartial]` at the namespace level.
+- **Recommendation:** Declare SQL classes directly in a namespace, rather than inside another class.
+
+### Generic SQL File Targets
+
+SQL files cannot target generic classes. Use a non-generic partial class to hold SQL queries. Generic methods remain supported.
 
 ### Record and Struct Support
 **Status:** Not Implemented (by design)

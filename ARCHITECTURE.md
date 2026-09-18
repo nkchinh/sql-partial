@@ -51,7 +51,7 @@ AdditionalTextsProvider
     ▼
 ImmutableArray<SqlFile>  ← Collect()
     │ SelectMany: group by (Namespace, ClassName, QueryName)
-    │ Logic: Detect Mapping Collisions (SQLPG006) - Longest extension wins
+    │ Logic: Detect Mapping Collisions (SQLPG006) - First encountered file wins
     ▼
 ImmutableArray<(SqlQueryGroup Group, Diagnostics)>  ← Collect()
     │ combine with GeneratorConfig
@@ -78,7 +78,7 @@ ImmutableArray<IMethodSymbol> ← Collect()
     ▼
 RegisterSourceOutput → SourceBuilder.BuildOverloads() (with Generic Constraints support)
 
-SyntaxProvider.CreateSyntaxProvider (All partial class/interface)
+SyntaxProvider.CreateSyntaxProvider (Top-level, non-generic partial classes)
     │ transform: ctx.TargetSymbol as INamedTypeSymbol
     │ select: extract AccessModifier (if any), collect symbol.MemberNames
     ▼
@@ -101,7 +101,7 @@ The second `Collect()` gathers all `SqlQueryGroup` objects to group them by clas
 SqlPartial implements automatic resolution for common configuration and naming conflicts.
 
 ### 1. SQL Mapping Collisions (`SQLPG006`)
-When multiple `.sql` files resolve to the same DBMS provider for a single query (e.g., `Repo.Get.pg.sql` and `Repo.Get.pgsql`), the generator selects the file with the **longest extension**. This ensures the most specific configuration takes precedence. A warning is issued to notify the user.
+When multiple `.sql` files resolve to the same DBMS provider for a single query (e.g., `Repo.Get.pg.sql` and `Repo.Get.pgsql`), the generator selects the **first encountered file** and reports a warning. Longest-extension matching applies to suffix parsing within a single filename, not duplicate mapping resolution.
 
 ### 2. Naming Collisions (`SQLPG005`)
 To prevent compilation errors, the generator checks if a property it intends to create (e.g., `SqlGetUsers`) already exists in the user's manual code.
@@ -113,6 +113,12 @@ This check applies to **all** target classes, even those without an explicit `[S
 ---
 
 ## Models
+
+Configuration validation reports provider errors as `SQLPG001` and namespace/type or conflicting shared modes as `SQLPG023`. `GeneratorConfig.IsValid` gates SQL file parsing, core type output and method overload output. Marker attributes remain post-initialization output.
+
+`FilePathParser` validates filename identifiers and canonical project-directory boundaries. Invalid recognized filenames or derived namespaces produce `SQLPG022` and are skipped. Unknown extensions retain optional `SQLPG020` behavior. `CSharpNames` validates C# names and escapes keywords when emitting identifiers.
+
+Class metadata contains only supported top-level, non-generic partial classes. A class batch without an exact matching name and namespace reports `SQLPG021` and skips source output for that target.
 
 ### `GeneratorConfig`
 

@@ -18,7 +18,13 @@ internal static class FilePathParser
     /// </summary>
     public static (string ns, string className, string queryName, string providerName)?
         TryParse(string filePath, string rootNamespace, string projectDir, ImmutableArray<SqlProvider> sortedProviders)
+        => TryParse(filePath, rootNamespace, projectDir, sortedProviders, out _);
+
+    public static (string ns, string className, string queryName, string providerName)?
+        TryParse(string filePath, string rootNamespace, string projectDir, ImmutableArray<SqlProvider> sortedProviders,
+            out bool invalidName)
     {
+        invalidName = false;
         var filename = Path.GetFileName(filePath);
 
         string? matchedExtension = null;
@@ -40,7 +46,11 @@ internal static class FilePathParser
         var baseName = filename.Substring(0, filename.Length - matchedExtension.Length);
         var segments = baseName.Split('.');
 
-        if (segments.Length != 2) return null;
+        if (segments.Length != 2 || !CSharpNames.IsIdentifier(segments[0]) || !CSharpNames.IsIdentifier(segments[1]))
+        {
+            invalidName = true;
+            return null;
+        }
 
         var className = segments[0];
         var queryName = segments[1];
@@ -48,18 +58,33 @@ internal static class FilePathParser
         // Derive namespace from directory relative to project root
         var ns = DeriveNamespace(filePath, rootNamespace, projectDir);
 
+        if (ns == null || !CSharpNames.IsNamespace(ns))
+        {
+            invalidName = true;
+            return null;
+        }
+
         return (ns, className, queryName, providerName);
     }
 
-    private static string DeriveNamespace(string filePath, string rootNamespace, string projectDir)
+    private static string? DeriveNamespace(string filePath, string rootNamespace, string projectDir)
     {
         var dir = Path.GetDirectoryName(filePath) ?? string.Empty;
 
         // Make relative to project directory
-        if (!string.IsNullOrEmpty(projectDir) &&
-            dir.StartsWith(projectDir, System.StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(projectDir))
         {
-            dir = dir.Substring(projectDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var projectRoot = Path.GetFullPath(projectDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            dir = Path.GetFullPath(dir);
+            var comparison = Path.DirectorySeparatorChar == '\\'
+                ? System.StringComparison.OrdinalIgnoreCase : System.StringComparison.Ordinal;
+
+            if (string.Equals(dir, projectRoot, comparison))
+                dir = string.Empty;
+            else if (dir.StartsWith(projectRoot + Path.DirectorySeparatorChar, comparison))
+                dir = dir.Substring(projectRoot.Length + 1);
+            else
+                return null;
         }
 
         if (string.IsNullOrEmpty(dir))

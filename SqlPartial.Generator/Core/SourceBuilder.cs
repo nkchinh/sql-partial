@@ -134,7 +134,7 @@ namespace SqlPartial
         {
             var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
             if (!first) sb.Append(", ");
-            sb.Append($"{stringType} {propName.ToLowerInvariant()} = null");
+            sb.Append($"{stringType} {CSharpNames.Escape(propName.ToLowerInvariant())} = null");
             first = false;
         }
 
@@ -146,7 +146,7 @@ namespace SqlPartial
         foreach (var providerName in providerNames)
         {
             var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
-            sb.AppendLine($"            _{propName.ToLowerInvariant()} = {propName.ToLowerInvariant()};");
+            sb.AppendLine($"            _{propName.ToLowerInvariant()} = {CSharpNames.Escape(propName.ToLowerInvariant())};");
         }
 
         sb.AppendLine("        }");
@@ -166,11 +166,13 @@ namespace SqlPartial
         sb.AppendLine("        {");
         sb.AppendLine("            switch (providerName)");
         sb.AppendLine("            {");
+
         foreach (var providerName in config.DistinctProviderNames)
         {
             var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
             sb.AppendLine($"                case \"{providerName}\": return {propName};");
         }
+
         sb.AppendLine("                default: return Default;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
@@ -206,7 +208,7 @@ namespace SqlPartial
         {
             var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
             if (!dynamicFirst) sb.Append(", ");
-            sb.Append($"{funcType} {propName.ToLowerInvariant()} = null");
+            sb.Append($"{funcType} {CSharpNames.Escape(propName.ToLowerInvariant())} = null");
             dynamicFirst = false;
         }
 
@@ -218,7 +220,7 @@ namespace SqlPartial
         foreach (var providerName in config.DistinctProviderNames)
         {
             var propName = char.ToUpperInvariant(providerName[0]) + providerName.Substring(1);
-            sb.AppendLine($"            _{propName.ToLowerInvariant()}Factory = {propName.ToLowerInvariant()};");
+            sb.AppendLine($"            _{propName.ToLowerInvariant()}Factory = {CSharpNames.Escape(propName.ToLowerInvariant())};");
         }
 
         sb.AppendLine("        }");
@@ -414,7 +416,7 @@ namespace SqlPartial
 
         sb.AppendLine($"namespace {ns}");
         sb.AppendLine("{");
-        sb.AppendLine($"    partial class {className}");
+        sb.AppendLine($"    partial class {CSharpNames.Escape(className)}");
         sb.AppendLine("    {");
 
         foreach (var group in groups)
@@ -430,7 +432,7 @@ namespace SqlPartial
                 if (group.ContentByProviderName.TryGetValue(providerName, out var content))
                 {
                     if (!first) sb.AppendLine(",");
-                    sb.Append($"            {providerName.ToLowerInvariant()}: @\"{content}\"");
+                    sb.Append($"            {CSharpNames.Escape(providerName.ToLowerInvariant())}: @\"{content}\"");
                     first = false;
                 }
             }

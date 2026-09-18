@@ -130,7 +130,7 @@ Add to your `.csproj`. A default is always available — only declare additional
 
 ### 3. Declare the partial class
 
-The generator produces a `partial class` — you must declare the other half yourself. The namespace is derived automatically from `$(RootNamespace)` + the relative directory of the `.sql` file.
+The generator adds members to an existing top-level, non-generic `partial class`. Its name and namespace must match exactly; otherwise generation is skipped with error `SQLPG021`. The namespace is derived automatically from `$(RootNamespace)` + the relative directory of the `.sql` file. Names are not automatically recased or normalized.
 
 ```csharp
 namespace MyApp.Data
@@ -150,9 +150,11 @@ ClassName.QueryName.pgsql        Also PostgreSQL (if configured)
 ClassName.QueryName.ms.sql       SQL Server-specific
 ```
 
-- **ClassName** — must match the `partial class` name exactly.
-- **QueryName** — becomes the property name on the class (prefixed with `Sql`).
+- **ClassName** — must be a valid C# identifier and match an existing `partial class` name exactly.
+- **QueryName** — must be a valid C# identifier and becomes the property name on the class (prefixed with `Sql`).
 - **Extension** — must match an extension declared in `SqlPartialProviders`, or use `.sql` for the default.
+
+Keyword names are escaped with `@` in generated C# (for example, `class.Query.sql` targets `partial class @class`). Files must be under the project directory, and directory names must form a valid C# namespace.
 
 ---
 
@@ -224,13 +226,17 @@ By default, generated SQL properties are `private static readonly`. If you need 
 using SqlPartial;
 
 [SqlPartial(AccessModifier.Public)]
-public partial class SharedQueries
+public static partial class SharedQueries
 {
     // Any .sql files targeting SharedQueries will generate PUBLIC properties
 }
 ```
 
 Available modifiers: `Private` (default), `Internal`, `Protected`, `Public`.
+
+For sharing within a project, use `Internal`. Public fields require public SQL types, provided by `SqlPartialEmitSharedNamespace`, a shared namespace, or an external public type.
+
+A shared SQL catalog needs only this one class declaration. Add `SharedQueries.GetUsers.sql`, `SharedQueries.GetRoles.sql`, etc. beside it, then access `SharedQueries.SqlGetUsers` from other classes.
 
 ### Sharing types across projects (Recommended)
 
@@ -261,30 +267,35 @@ To avoid duplicating core types and enable cross-project attribute sharing, use 
 | `SqlPartialStringsType` | No | _(none)_ | Fully-qualified type to use instead of generating `SqlStrings` |
 | `SqlPartialWarnOnUnrecognized` | No | `false` | If `true`, emits `SQLPG020` for unknown extensions |
 
+`SqlPartialEmitSharedNamespace` and `SqlPartialUseSharedNamespace` are mutually exclusive. Namespace and external type settings must contain valid C# names. Provider extensions must be unique (case-insensitive); `.sql` is reserved for fallback. Multiple distinct extensions may share the exact same provider name. Provider names that generate conflicting members or parameter names, including `Default`, `Get`, and `Fallback`, are rejected; C# keywords are supported through `@` escaping.
+
 ---
 
 ## Diagnostics
 
 | Code | Severity | Category | Meaning |
 |:---|:---:|:---:|:---|
-| `SQLPG001` | **Error** | Config | Invalid `SqlPartialProviders` syntax. Format must be `ext:Name`. |
+| `SQLPG001` | **Error** | Config | Invalid provider syntax, duplicate/reserved extension, or conflicting provider name. |
 | `SQLPG002` | **Error** | Tooling | Internal failure generating `SqlStrings` struct. |
 | `SQLPG003` | **Error** | Tooling | Internal failure generating partial class file. |
 | `SQLPG004` | **Error** | Tooling | Internal failure generating method overloads. |
 | `SQLPG005` | Warning | Logic | **Naming Collision:** Generated property name exists in user code. Renamed automatically. |
-| `SQLPG006` | Warning | Logic | **Duplicate Mapping:** Multiple files map to the same DBMS provider. Longest extension wins. |
+| `SQLPG006` | Warning | Logic | **Duplicate Mapping:** Multiple files map to the same DBMS provider. First encountered file wins. |
 | `SQLPG030` | **Error** | Design | Missing `SqlProviderName` property when using `[Sql]`. |
 | `SQLPG010` | Warning | Logic | Missing Default SQL & incomplete DBMS coverage. |
 | `SQLPG011` | Warning | Quality | SQL file is empty after cleaning comments/excludes. |
 | `SQLPG012` | Warning | Logic | Missing Default SQL in manual instantiation (`new SqlStrings`). |
 | `SQLPG013` | Warning | Quality | Mismatched `-- #exclude` or `-- /exclude` tags in SQL file. |
 | `SQLPG020` | Warning | Usage | Unrecognized extension (Disabled by default). |
+| `SQLPG021` | **Error** | Design | No matching top-level, non-generic partial class for a SQL file. |
+| `SQLPG022` | **Error** | Usage | Invalid SQL filename, folder namespace, or file outside the project directory. |
+| `SQLPG023` | **Error** | Config | Invalid namespace/type name or simultaneous emit/use shared namespace settings. |
 
 ---
 
 ## Robustness & Conflict Handling
 
-SqlPartial is designed to be "silent but helpful," ensuring your project builds even with imperfect configurations.
+SqlPartial reports configuration and target-class errors before emitting SQL members. Naming and SQL mapping collisions produce warnings with the behaviors described below.
 
 ### 1. Naming Collisions
 If a generated property (e.g., `SqlGetUsers`) would conflict with an existing field, property, or method in your C# class, the generator will:
@@ -296,9 +307,9 @@ This ensures that your manual code always takes precedence and the project remai
 ### 2. SQL Mapping Collisions
 If multiple files resolve to the same DBMS provider for the same query (e.g., `GetUsers.pg.sql` and `GetUsers.pgsql` both mapping to `PostgreSql`), the generator will:
 1. Emit a **SQLPG006** warning.
-2. Select the file with the **longest extension** (the most specific one).
+2. Select the **first encountered file**. Resolve the warning rather than relying on file ordering.
 
-Example: `GetUsers.pg.sql` (length 7) will be chosen over `GetUsers.sql` (length 4) if both are considered candidates for a specific provider.
+Extension matching within a single filename still chooses the longest configured suffix. A provider-specific file and a fallback `.sql` file are separate mappings and may coexist.
 
 ---
 

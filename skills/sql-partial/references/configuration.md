@@ -68,6 +68,10 @@ You can define multiple extensions for the same DBMS. Extensions **must** start 
 </PropertyGroup>
 ```
 
+Extensions must be unique (case-insensitive), and `.sql` is reserved for fallback. Multiple extensions may share the exact same provider name. Provider names must be valid C# identifiers and must not conflict with generated members such as `Default` or `Get`; keyword names are escaped automatically.
+
+Namespace and external type settings must contain valid C# names. Configure only one shared namespace mode per project: emit in the abstractions project and use in consumers. Invalid configuration stops SQL generation; see [Troubleshooting](troubleshooting.md) for diagnostics and fixes.
+
 ## Troubleshooting Common Issues
 
 ### 1. Missing `SqlProviderName` (SQLPG030)

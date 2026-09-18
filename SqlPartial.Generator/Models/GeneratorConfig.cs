@@ -16,7 +16,8 @@ internal sealed class GeneratorConfig(
     bool nullableEnabled,
     bool warnOnUnrecognized = false,
     string? emitSharedNamespace = null,
-    string? useSharedNamespace = null) : System.IEquatable<GeneratorConfig>
+    string? useSharedNamespace = null,
+    ImmutableArray<string> configurationErrors = default) : System.IEquatable<GeneratorConfig>
 {
     public string RootNamespace { get; } = rootNamespace;
 
@@ -30,6 +31,11 @@ internal sealed class GeneratorConfig(
     /// Any entries in SqlPartialProviders that failed to parse correctly.
     /// </summary>
     public ImmutableArray<string> InvalidProviderEntries { get; } = invalidProviderEntries;
+
+    public ImmutableArray<string> ConfigurationErrors { get; } = configurationErrors.IsDefault
+        ? ImmutableArray<string>.Empty : configurationErrors;
+
+    public bool IsValid => InvalidProviderEntries.IsEmpty && ConfigurationErrors.IsEmpty;
 
     /// <summary>
     /// Combined user providers and fallback, deduplicated and sorted by length descending.
@@ -87,7 +93,8 @@ internal sealed class GeneratorConfig(
         EmitSharedNamespace == other.EmitSharedNamespace &&
         UseSharedNamespace == other.UseSharedNamespace &&
         Providers.SequenceEqual(other.Providers) &&
-        InvalidProviderEntries.SequenceEqual(other.InvalidProviderEntries);
+        InvalidProviderEntries.SequenceEqual(other.InvalidProviderEntries) &&
+        ConfigurationErrors.SequenceEqual(other.ConfigurationErrors);
 
     public override bool Equals(object? obj) => Equals(obj as GeneratorConfig);
 

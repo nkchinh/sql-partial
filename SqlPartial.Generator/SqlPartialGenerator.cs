@@ -61,6 +61,18 @@ public class SqlPartialGenerator : IIncrementalGenerator
             "SQLPG020", "Unrecognized SQL file extension", "{0}",
             Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor SQLPG021 = new(
+            "SQLPG021", "Missing or unsupported target class", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG022 = new(
+            "SQLPG022", "Invalid SQL file name or namespace", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor SQLPG023 = new(
+            "SQLPG023", "Invalid generator configuration", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
         public static DiagnosticDescriptor GetDescriptor(string id) => id switch
         {
             "SQLPG001" => SQLPG001,
@@ -72,6 +84,9 @@ public class SqlPartialGenerator : IIncrementalGenerator
             "SQLPG011" => SQLPG011,
             "SQLPG013" => SQLPG013,
             "SQLPG020" => SQLPG020,
+            "SQLPG021" => SQLPG021,
+            "SQLPG022" => SQLPG022,
+            "SQLPG023" => SQLPG023,
             _ => new DiagnosticDescriptor(id, "Generator Error", "{0}", Category, DiagnosticSeverity.Error, true)
         };
     }
@@ -114,8 +129,11 @@ public class SqlPartialGenerator : IIncrementalGenerator
             foreach (var invalidEntry in cfg.InvalidProviderEntries)
             {
                 ReportDiagnostic(ctx, Diagnostics.SQLPG001,
-                    $"The provider configuration '{invalidEntry}' is invalid. It must follow the format 'extension:DisplayName' (e.g., '.pg.sql:PostgreSql').");
+                    $"The provider configuration '{invalidEntry}' is invalid or conflicts with another entry. Use a unique extension (other than reserved '.sql') and a valid, non-conflicting provider name, e.g. '.pg.sql:PostgreSql'.");
             }
+
+            foreach (var error in cfg.ConfigurationErrors)
+                ReportDiagnostic(ctx, Diagnostics.SQLPG023, error);
         });
 
         // ── AdditionalFiles: marked as SqlPartial ────────────────────────
@@ -143,11 +161,15 @@ public class SqlPartialGenerator : IIncrementalGenerator
             .Select((tuple, _) =>
             {
                 var ((filePath, sourceText, cleanResult), (cfg, projDir)) = tuple;
-                var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.SortedProviders);
+                if (!cfg.IsValid) return new SqlFileResult(filePath, null, isUnrecognized: false);
+                var parsed = FilePathParser.TryParse(filePath, cfg.RootNamespace, projDir, cfg.SortedProviders, out var invalidName);
 
                 if (parsed is null)
                 {
-                    return new SqlFileResult(filePath, null, isUnrecognized: true);
+                    return new SqlFileResult(filePath, null, isUnrecognized: !invalidName, sourceText,
+                        invalidName ? ImmutableArray.Create(new SqlDiagnosticInfo("SQLPG022", "Invalid SQL file name or namespace",
+                            "SQL files must use ClassName.QueryName with valid C# identifiers and reside under the project directory in folders forming a valid namespace.",
+                            DiagnosticSeverity.Error, 0, 0)) : ImmutableArray<SqlDiagnosticInfo>.Empty);
                 }
 
                 var (ns, className, queryName, providerName) = parsed.Value;
@@ -235,12 +257,11 @@ public class SqlPartialGenerator : IIncrementalGenerator
         // ── Collect groups per class and combine with config + nullable ──
         var classMetadata = context.SyntaxProvider.CreateSyntaxProvider(
             predicate: static (node, _) =>
-                (node is ClassDeclarationSyntax c && c.Modifiers.Any(SyntaxKind.PartialKeyword)) ||
-                (node is InterfaceDeclarationSyntax i && i.Modifiers.Any(SyntaxKind.PartialKeyword)),
+                node is ClassDeclarationSyntax c && c.Modifiers.Any(SyntaxKind.PartialKeyword),
             transform: static (ctx, _) =>
             {
                 var symbol = ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) as INamedTypeSymbol;
-                if (symbol == null) return default;
+                if (symbol == null || symbol.ContainingType != null || symbol.Arity != 0) return default;
 
                 var ns = symbol.ContainingNamespace.IsGlobalNamespace ? "" : symbol.ContainingNamespace.ToDisplayString();
                 var fullName = string.IsNullOrEmpty(ns) ? symbol.Name : $"{ns}.{symbol.Name}";
@@ -306,6 +327,12 @@ public class SqlPartialGenerator : IIncrementalGenerator
                         var finalGroups = new System.Collections.Generic.List<SqlQueryGroup>();
                         var diagnostics = new System.Collections.Generic.List<(DiagnosticDescriptor, string)>();
 
+                        if (info.ExistingMembers == null)
+                        {
+                            diagnostics.Add((Diagnostics.SQLPG021,
+                                $"SQL target '{g.Key}' must be declared as a top-level, non-generic partial class with matching name and namespace. For a shared SQL catalog, declare a static partial class."));
+                        }
+
                         foreach (var tuple in g)
                         {
                             var group = tuple.Group;
@@ -356,7 +383,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(config.Combine(supportsNullable), (ctx, tuple) =>
         {
             var (cfg, nullableSupport) = tuple;
-            if (cfg.ExternalSqlStringsType is not null) return;
+            if (!cfg.IsValid || cfg.ExternalSqlStringsType is not null) return;
 
             try
             {
@@ -379,6 +406,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
                 {
                     ReportDiagnostic(ctx, diag.Item1, diag.Item2);
                 }
+
+                if (batch.Diagnostics.Any(d => d.Item1.DefaultSeverity == DiagnosticSeverity.Error)) return;
 
                 // Report SQLPG010 (Missing Fallback)
                 foreach (var group in batch.Groups)
@@ -425,7 +454,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(methodDeclarations.Combine(config.Combine(supportsNullable)), (ctx, tuple) =>
         {
             var (methods, (cfg, nullableSupport)) = tuple;
-            if (methods.IsDefaultOrEmpty) return;
+            if (!cfg.IsValid || methods.IsDefaultOrEmpty) return;
 
             var methodsByType = methods
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)

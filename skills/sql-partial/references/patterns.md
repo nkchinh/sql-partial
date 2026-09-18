@@ -149,5 +149,5 @@ await QueryAsync(partitioned);
 - **Check**: Is it `ClassName.QueryName.sql`? Note that `ClassName` must match the C# class name exactly (case-sensitive).
 
 ### 3. Namespace Mismatch
-- **Cause**: `.sql` file is in a subdirectory, and you haven't declared the partial class in that same sub-namespace.
-- **Fix**: Move the `.sql` file to the same folder as the `.cs` file, or ensure the `partial class` in C# uses the namespace matching the folder path.
+- **Cause**: The SQL file's derived namespace does not match the existing partial class.
+- **Fix**: Match the class namespace to the SQL directory, or move the SQL file to the matching directory. See [Troubleshooting](troubleshooting.md) for diagnostic details.

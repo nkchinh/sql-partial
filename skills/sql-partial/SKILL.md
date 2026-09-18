@@ -57,6 +57,7 @@ public partial class UserRepo {
 - **Advanced Sharing**: By default, SQL properties are `private`. To share them across classes, use `[SqlPartial(AccessModifier.Public)]` on the class. Supported modifiers are `Private` (default), `Internal`, `Protected`, `Public`.
 - **Collision Protection**: The generator automatically detects if a property name (e.g., `SqlGetUsers`) already exists in your manual code and will rename the generated property to `SqlGetUsers1` (and report `SQLPG005`). This works for **all** target classes.
 
+Declare an existing top-level, non-generic `partial class` whose name and namespace match the SQL files exactly. For a shared catalog, declare one `static partial class` and add its query files. Consult the configuration guide for provider and namespace rules, and the troubleshooting guide for diagnostic details.
 
 **Option B: Generic Execution (Manual)**
 Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`.
@@ -179,7 +180,7 @@ To keep your workflow efficient, consult these detailed guides when needed:
 
 - **[Configuration Guide](references/configuration.md)**: Deep dive into `.csproj` properties and advanced MSBuild setup.
 - **[Pattern Library](references/patterns.md)**: Examples of Default vs. Provider-specific SQL, and handling exclusion blocks.
-- **[Troubleshooting](references/troubleshooting.md)**: Common errors like `SQLPG030` (missing property) and `SQLPG001`.
+- **[Troubleshooting](references/troubleshooting.md)**: Diagnostic codes, common errors, and recommended fixes.
 
 ---
 
