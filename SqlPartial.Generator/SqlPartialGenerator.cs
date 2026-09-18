@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
@@ -219,8 +220,8 @@ public class SqlPartialGenerator : IIncrementalGenerator
                     .GroupBy(f => (f.Namespace, f.ClassName, f.QueryName))
                     .Select(g =>
                     {
-                        var contents = new System.Collections.Generic.Dictionary<string, string>();
-                        var diagnostics = new System.Collections.Generic.List<(DiagnosticDescriptor, string, string)>(); // (Descriptor, Message, FilePath)
+                        var contents = new Dictionary<string, string>();
+                        var diagnostics = new List<(DiagnosticDescriptor, string, string)>(); // (Descriptor, Message, FilePath)
 
                         foreach (var file in g)
                         {
@@ -324,8 +325,12 @@ public class SqlPartialGenerator : IIncrementalGenerator
                     {
                         metadataLookup.TryGetValue(g.Key, out var info);
 
-                        var finalGroups = new System.Collections.Generic.List<SqlQueryGroup>();
-                        var diagnostics = new System.Collections.Generic.List<(DiagnosticDescriptor, string)>();
+                        var finalGroups = new List<SqlQueryGroup>();
+                        var diagnostics = new List<(DiagnosticDescriptor, string)>();
+                        var reservedNames = new HashSet<string>(g.Select(x => $"Sql{x.Group.QueryName}"));
+
+                        if (info.ExistingMembers != null)
+                            reservedNames.UnionWith(info.ExistingMembers);
 
                         if (info.ExistingMembers == null)
                         {
@@ -343,11 +348,13 @@ public class SqlPartialGenerator : IIncrementalGenerator
                             // Check if the property name already exists in the user's class
                             if (info.ExistingMembers != null && info.ExistingMembers.Contains(currentName))
                             {
-                                while (info.ExistingMembers.Contains($"{originalName}{counter}"))
+                                while (reservedNames.Contains($"{originalName}{counter}"))
                                 {
                                     counter++;
                                 }
+
                                 currentName = $"{originalName}{counter}";
+                                reservedNames.Add(currentName);
                                 diagnostics.Add((Diagnostics.SQLPG005,
                                     $"Property '{originalName}' already exists in class '{group.ClassName}'. Generated property renamed to '{currentName}'."));
                             }
@@ -458,56 +465,16 @@ public class SqlPartialGenerator : IIncrementalGenerator
 
             var methodsByType = methods
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)
+                .Where(m =>
+                    (m.IsExtensionMethod && m.Parameters.Length > 0 &&
+                     Analyzers.SqlMethodAnalyzer.HasSqlProviderName(m.Parameters[0].Type, false)) ||
+                    Analyzers.SqlMethodAnalyzer.HasSqlProviderName(m.ContainingType, m.IsStatic))
                 .GroupBy(m => m.ContainingType, SymbolEqualityComparer.Default);
 
             foreach (var group in methodsByType)
             {
                 var type = (ITypeSymbol)group.Key!;
                 var ns = type.ContainingNamespace?.ToDisplayString() ?? "Generated";
-
-                // Final safety check: does it have SqlProviderName?
-                // (Already checked by Analyzer, but good to be safe for generation)
-                bool hasProviderName = type.GetMembers("SqlProviderName")
-                    .OfType<IPropertySymbol>()
-                    .Any(p => p.Type.SpecialType == SpecialType.System_String);
-
-                // Check interfaces if not in class
-                if (!hasProviderName)
-                {
-                    hasProviderName = type.AllInterfaces.Any(i => i.GetMembers("SqlProviderName")
-                        .OfType<IPropertySymbol>()
-                        .Any(p => p.Type.SpecialType == SpecialType.System_String));
-                }
-
-                // If it's an extension method in a static class, we should also check the extended type
-                if (!hasProviderName)
-                {
-                    foreach (var method in group)
-                    {
-                        if (method.IsExtensionMethod && method.Parameters.Length > 0)
-                        {
-                            var extendedType = method.Parameters[0].Type;
-                            bool extendedTypeHasProvider = extendedType.GetMembers("SqlProviderName")
-                                .OfType<IPropertySymbol>()
-                                .Any(p => p.Type.SpecialType == SpecialType.System_String);
-
-                            if (!extendedTypeHasProvider)
-                            {
-                                extendedTypeHasProvider = extendedType.AllInterfaces.Any(i => i.GetMembers("SqlProviderName")
-                                    .OfType<IPropertySymbol>()
-                                    .Any(p => p.Type.SpecialType == SpecialType.System_String));
-                            }
-
-                            if (extendedTypeHasProvider)
-                            {
-                                hasProviderName = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!hasProviderName) continue;
 
                 try
                 {

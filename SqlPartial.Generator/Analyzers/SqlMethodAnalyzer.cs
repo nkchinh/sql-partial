@@ -90,7 +90,7 @@ public class SqlMethodAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static bool HasSqlProviderName(INamedTypeSymbol type, bool mustBeStatic)
+    internal static bool HasSqlProviderName(ITypeSymbol type, bool mustBeStatic)
     {
         // Search in current type and all base types / interfaces
         var current = type;

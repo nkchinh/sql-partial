@@ -516,7 +516,7 @@ namespace SqlPartial
         else
         {
             var nullable = supportsNullable && config.NullableEnabled;
-            sb.AppendLine($"    partial {type.TypeKind.ToString().ToLower()} {type.Name}");
+            sb.AppendLine($"    partial {type.TypeKind.ToString().ToLower()} {CSharpNames.Escape(type.Name)}");
             sb.AppendLine("    {");
 
             foreach (var method in methods)
@@ -537,12 +537,17 @@ namespace SqlPartial
         StringBuilder sb, IMethodSymbol method, ITypeSymbol type, bool isExtension, string baseVisibility,
         string sqlTypeName, string getMethodName = "Get", bool isRefType = false, bool nullableEnabled = false)
     {
-        var accessibility = method.DeclaredAccessibility.ToString().ToLower();
+        var accessibility = method.DeclaredAccessibility switch
+        {
+            Accessibility.ProtectedOrInternal => "protected internal",
+            Accessibility.ProtectedAndInternal => "private protected",
+            _ => method.DeclaredAccessibility.ToString().ToLowerInvariant()
+        };
 
         // If ISqlString is internal, we cannot have a public/protected overload referencing it
         if (baseVisibility == "internal")
         {
-            if (accessibility == "public" || accessibility == "protected" || accessibility == "protectedinternal")
+            if (accessibility == "public" || accessibility == "protected" || accessibility == "protected internal")
             {
                 accessibility = "internal";
             }
@@ -555,13 +560,13 @@ namespace SqlPartial
         var returnType = method.ReturnsVoid ? "void" : method.ReturnType.ToDisplayString();
 
         // Build generic version
-        sb.Append($"        {accessibility} {staticKeyword}{returnType} {method.Name}");
+        sb.Append($"        {accessibility} {staticKeyword}{returnType} {CSharpNames.Escape(method.Name)}");
 
         // Handle generic parameters of the original method
         if (method.IsGenericMethod)
         {
             sb.Append('<');
-            sb.Append(string.Join(", ", method.TypeParameters.Select(tp => tp.Name)));
+            sb.Append(string.Join(", ", method.TypeParameters.Select(tp => CSharpNames.Escape(tp.Name))));
             sb.Append('>');
         }
 
@@ -584,13 +589,25 @@ namespace SqlPartial
 
             if (IsSqlAttribute(param))
             {
-                var typeSuffix = isRefType && nullableEnabled
-                    && param.HasExplicitDefaultValue && param.ExplicitDefaultValue == null ? "?" : "";
-                sb.Append($"{sqlTypeName}{typeSuffix} {param.Name}");
+                var typeSuffix = isRefType &&
+                                 nullableEnabled &&
+                                 param.HasExplicitDefaultValue &&
+                                 param.ExplicitDefaultValue == null ?
+                                    "?" : "";
+
+                sb.Append($"{sqlTypeName}{typeSuffix} {CSharpNames.Escape(param.Name)}");
             }
             else
             {
-                sb.Append($"{param.Type.ToDisplayString()} {param.Name}");
+                var refModifier = param.RefKind switch
+                {
+                    RefKind.Ref => "ref ",
+                    RefKind.Out => "out ",
+                    RefKind.In => "in ",
+                    _ => ""
+                };
+
+                sb.Append($"{refModifier}{param.Type.ToDisplayString()} {CSharpNames.Escape(param.Name)}");
             }
 
             if (param.HasExplicitDefaultValue)
@@ -615,7 +632,7 @@ namespace SqlPartial
                 var constraints = GetTypeParameterConstraints(tp);
                 if (!string.IsNullOrEmpty(constraints))
                 {
-                    sb.Append($" where {tp.Name} : {constraints}");
+                    sb.Append($" where {CSharpNames.Escape(tp.Name)} : {constraints}");
                 }
             }
         }
@@ -625,14 +642,15 @@ namespace SqlPartial
 
         var providerAccess = isExt
             ? "self.SqlProviderName"
-            : (method.IsStatic ? $"{type.Name}.SqlProviderName" : "this.SqlProviderName");
+            : (method.IsStatic ? $"{CSharpNames.Escape(type.Name)}.SqlProviderName" : "this.SqlProviderName");
 
         var callPrefix = isInterfaceExt ? "self." : "";
-        sb.Append($"            {(method.ReturnsVoid ? "" : "return ")}{callPrefix}{method.Name}");
+        sb.Append($"            {(method.ReturnsVoid ? "" : "return ")}{callPrefix}{CSharpNames.Escape(method.Name)}");
+
         if (method.IsGenericMethod)
         {
             sb.Append("<");
-            sb.Append(string.Join(", ", method.TypeParameters.Select(tp => tp.Name)));
+            sb.Append(string.Join(", ", method.TypeParameters.Select(tp => CSharpNames.Escape(tp.Name))));
             sb.Append(">");
         }
 
@@ -650,14 +668,25 @@ namespace SqlPartial
             }
             else if (IsSqlAttribute(param))
             {
-                bool mayBeNull = isRefType && nullableEnabled
-                    && param.HasExplicitDefaultValue && param.ExplicitDefaultValue == null;
+                bool mayBeNull = isRefType &&
+                        nullableEnabled &&
+                        param.HasExplicitDefaultValue &&
+                        param.ExplicitDefaultValue == null;
+
                 var accessor = mayBeNull ? "?." : ".";
-                sb.Append($"{param.Name}{accessor}{getMethodName}({providerAccess})");
+                sb.Append($"{CSharpNames.Escape(param.Name)}{accessor}{getMethodName}({providerAccess})");
             }
             else
             {
-                sb.Append(param.Name);
+                var refModifier = param.RefKind switch
+                {
+                    RefKind.Ref => "ref ",
+                    RefKind.Out => "out ",
+                    RefKind.In => "in ",
+                    _ => "",
+                };
+
+                sb.Append(refModifier + CSharpNames.Escape(param.Name));
             }
 
             isFirst = false;
@@ -678,6 +707,7 @@ namespace SqlPartial
     private static string FormatDefaultValue(IParameterSymbol param)
     {
         var value = param.ExplicitDefaultValue;
+
         if (value == null)
         {
             // If it's a [Sql] parameter, it becomes a struct (SqlStrings/SqlDynamic),
@@ -701,6 +731,7 @@ namespace SqlPartial
     private static string GetTypeParameterConstraints(ITypeParameterSymbol tp)
     {
         var constraints = new List<string>();
+
         if (tp.HasReferenceTypeConstraint) constraints.Add("class");
         if (tp.HasValueTypeConstraint) constraints.Add("struct");
         if (tp.HasUnmanagedTypeConstraint) constraints.Add("unmanaged");

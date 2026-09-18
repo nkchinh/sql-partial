@@ -144,7 +144,139 @@ public class ValidationTests
         Assert.Equal("MyProject.Queries", child?.ns);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generator_ShouldReserveOtherQueryNamesWhenRenamingCollision(bool reverseFiles)
+    {
+        string[] files = ["Repo.Query.sql", "Repo.Query1.sql"];
+        if (reverseFiles) Array.Reverse(files);
+        var (result, output) = Run("namespace MyProject { partial class Repo { int SqlQuery; } }", files);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "SQLPG005");
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+        var repo = output.GetTypeByMetadataName("MyProject.Repo")!;
+        Assert.Single(repo.GetMembers("SqlQuery1"));
+        Assert.Single(repo.GetMembers("SqlQuery2"));
+    }
+
+    [Theory]
+    [InlineData("Repo", "Execute", "event")]
+    [InlineData("Repo", "class", "sql")]
+    [InlineData("class", "Execute", "sql")]
+    public void Generator_ShouldCompileOverloadsWithKeywordIdentifiers(string type, string method, string parameter)
+    {
+        var (result, output) = Run($$"""
+            namespace MyProject {
+                partial class @{{type}} {
+                    public string SqlProviderName => "Pg";
+                    public void @{{method}}([SqlPartial.Sql] string @{{parameter}}) { }
+                    public void Use() => @{{method}}(new MyProject.SqlStrings("SELECT 1;"));
+                }
+            }
+            """, []);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Theory]
+    [InlineData("ref", "")]
+    [InlineData("out", "count = 1;")]
+    [InlineData("in", "")]
+    public void Generator_ShouldPreserveNonSqlParameterRefKind(string modifier, string body)
+    {
+        var (result, output) = Run($$"""
+            namespace MyProject {
+                partial class Repo {
+                    public string SqlProviderName => "Pg";
+                    public void Execute([SqlPartial.Sql] string sql, {{modifier}} int count) { {{body}} }
+                    public void Use() {
+                        int count = 0;
+                        Execute(new MyProject.SqlStrings("SELECT 1;"), {{modifier}} count);
+                    }
+                }
+            }
+            """, []);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Theory]
+    [InlineData("protected internal", false, Accessibility.Internal)]
+    [InlineData("protected internal", true, Accessibility.ProtectedOrInternal)]
+    [InlineData("private protected", false, Accessibility.ProtectedAndInternal)]
+    [InlineData("private protected", true, Accessibility.ProtectedAndInternal)]
+    public void Generator_ShouldEmitValidCompoundAccessibility(string modifier, bool shared, Accessibility expected)
+    {
+        var (result, output) = Run(
+            $$"""
+            namespace MyProject {
+                partial class Repo {
+                    public string SqlProviderName => "Pg";
+                    {{modifier}} void Execute([SqlPartial.Sql] string sql) { }
+                }
+            }
+            """,
+            [],
+            shared ? new() { ["SqlPartialEmitSharedNamespace"] = "MyProject" } : null);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+        var overloads = output.GetTypeByMetadataName("MyProject.Repo")!.GetMembers("Execute")
+            .OfType<IMethodSymbol>().Where(m => m.Parameters[0].Type.SpecialType != SpecialType.System_String).ToArray();
+        Assert.Equal(3, overloads.Length);
+        Assert.All(overloads, m => Assert.Equal(expected, m.DeclaredAccessibility));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generator_ShouldGenerateOverloadsForInheritedProvider(bool isStatic)
+    {
+        var modifier = isStatic ? "static" : "";
+        var (result, output) = Run(
+            $$"""
+            namespace MyProject {
+                class Base { public {{modifier}} string SqlProviderName => "Pg"; }
+                partial class Repo : Base {
+                    public {{modifier}} void Execute([SqlPartial.Sql] string sql) { }
+                    public {{modifier}} void Use() => Execute(new MyProject.SqlStrings("SELECT 1;"));
+                }
+            }
+            """,
+            []);
+
+        Assert.Contains(result.GeneratedTrees, t => t.FilePath.Contains("Overloads"));
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void Generator_ShouldGenerateExtensionsForInheritedProvider()
+    {
+        var (result, output) = Run(
+            """
+            namespace MyProject {
+                class Base { public string SqlProviderName => "Pg"; }
+                class Repo : Base { }
+                static partial class Extensions {
+                    public static void Execute(this Repo repo, [SqlPartial.Sql] string sql) { }
+                    public static void Use(Repo repo) => repo.Execute(new MyProject.SqlStrings("SELECT 1;"));
+                }
+            }
+            """,
+            []);
+
+        Assert.Contains(result.GeneratedTrees, t => t.FilePath.Contains("Overloads"));
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+    }
+
     private static (GeneratorDriverRunResult result, Compilation output) Run(string source, string fileName,
+        Dictionary<string, string>? properties = null)
+        => Run(source, [fileName], properties);
+
+    private static (GeneratorDriverRunResult result, Compilation output) Run(string source, string[] fileNames,
         Dictionary<string, string>? properties = null)
     {
         var projectDir = Path.Combine(Path.GetTempPath(), "SqlPartialValidation");
@@ -152,8 +284,9 @@ public class ValidationTests
         {
             ["build_property.RootNamespace"] = "MyProject",
             ["build_property.MSBuildProjectDirectory"] = projectDir,
-            ["build_metadata.AdditionalFiles.SourceItemType"] = "SqlPartial"
+            ["build_metadata.AdditionalFiles.SourceItemType"] = "SqlPartial",
         };
+
         foreach (var p in properties ?? []) options["build_property." + p.Key] = p.Value;
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Where(p => Path.GetDirectoryName(p) == Path.GetDirectoryName(typeof(object).Assembly.Location))
@@ -161,7 +294,8 @@ public class ValidationTests
         var compilation = CSharpCompilation.Create("Validation", [CSharpSyntaxTree.ParseText(source)], references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         GeneratorDriver driver = CSharpGeneratorDriver.Create([new SqlPartialGenerator().AsSourceGenerator()],
-            [new SqlText(Path.Combine(projectDir, fileName))], optionsProvider: new Options(options));
+            fileNames.Select(f => (AdditionalText)new SqlText(Path.Combine(projectDir, f))).ToArray(),
+            optionsProvider: new Options(options));
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
         return (driver.GetRunResult(), output);
     }
