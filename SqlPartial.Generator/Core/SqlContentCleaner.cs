@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -39,6 +40,7 @@ internal static class SqlContentCleaner
 
     /// <summary>
     /// Strips #testpart blocks, leading/trailing blank lines, and line comments.
+    /// Preserves one leading/trailing newline when the original content has one.
     /// Returns content safe to embed in a C# verbatim string (quotes escaped)
     /// and any diagnostics (like mismatched tags).
     /// </summary>
@@ -48,6 +50,18 @@ internal static class SqlContentCleaner
             return new CleanResult(string.Empty, ImmutableArray<SqlDiagnosticInfo>.Empty);
 
         var diagnostics = new List<SqlDiagnosticInfo>();
+        var newline = sql.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+
+        var hasLeadingNewline =
+            sql.StartsWith("\r\n", StringComparison.Ordinal) ||
+            sql.StartsWith("\n", StringComparison.Ordinal);
+
+        var sqlWithoutTrailingSpaces = sql.TrimEnd(' ', '\t');
+
+        var hasTrailingNewline =
+            sqlWithoutTrailingSpaces.EndsWith("\r\n", StringComparison.Ordinal) ||
+            sqlWithoutTrailingSpaces.EndsWith("\n", StringComparison.Ordinal);
+
         var blocksToRemove = new List<(int Start, int End)>();
 
         // 1. Find all tags and process them sequentially
@@ -166,6 +180,12 @@ internal static class SqlContentCleaner
 
         // Escape double-quotes for C# verbatim string literal
         var finalContent = sbFinal.ToString().Replace("\"", "\"\"");
+
+        if (hasLeadingNewline)
+            finalContent = newline + finalContent;
+
+        if (hasTrailingNewline)
+            finalContent += newline;
 
         return new CleanResult(finalContent, diagnostics.ToImmutableArray());
     }

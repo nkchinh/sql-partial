@@ -86,6 +86,28 @@ public class GeneratorCoreTests
         Assert.Equal("SELECT * FROM \"\"Users\"\" WHERE Name = 'O\"\"Reilly';", cleaned);
     }
 
+    [Theory]
+    [InlineData("\nSELECT 1;\n", "\nSELECT 1;\n")]
+    [InlineData("SELECT 1;", "SELECT 1;")]
+    [InlineData("\r\nSELECT 1;\r\n", "\r\nSELECT 1;\r\n")]
+    [InlineData("SELECT 1;\n   ", "SELECT 1;\n")]
+    public void SqlCleaner_ShouldPreserveOneBoundaryNewlineWhenPresent(string sql, string expected)
+    {
+        var result = SqlContentCleaner.Clean(sql);
+
+        Assert.Equal(expected, result.Content);
+    }
+
+    [Theory]
+    [InlineData("-- generated header\nSELECT 1;", "SELECT 1;")]
+    [InlineData("-- #exclude\nSELECT 2;\n-- /exclude\nSELECT 1;", "SELECT 1;")]
+    public void SqlCleaner_ShouldNotLeaveNewlineBeforeFirstSqlAfterRemovedLeadingBlock(string sql, string expected)
+    {
+        var result = SqlContentCleaner.Clean(sql);
+
+        Assert.Equal(expected, result.Content);
+    }
+
     [Fact]
     public void SourceBuilder_BuildSqlStringsStruct_ShouldGenerateCorrectStructs()
     {

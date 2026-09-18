@@ -13,7 +13,7 @@ public partial class GenericTests
         where U : struct
     {
         // Simple mock implementation
-        if (sql == "SELECT 'pg' FROM Users;")
+        if (sql == "SELECT 'pg' FROM Users;" + Environment.NewLine)
         {
             return new T();
         }

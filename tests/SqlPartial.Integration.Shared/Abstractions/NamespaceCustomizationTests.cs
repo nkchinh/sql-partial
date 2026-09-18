@@ -17,12 +17,12 @@ public partial class NamespaceCustomizationTests
         var sql = SqlQuery;
 
         Assert.IsType<SqlStrings>(sql);
-        Assert.Equal("SELECT 'From .sql';", sql.Default);
+        Assert.Equal("SELECT 'From .sql';" + Environment.NewLine, sql.Default);
 
         // Test the overload
         SqlProviderName = "PostgreSql";
         var result = Query(sql);
-        Assert.Equal("SELECT 'From .sql';", result);
+        Assert.Equal("SELECT 'From .sql';" + Environment.NewLine, result);
     }
 
     [Fact]

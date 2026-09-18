@@ -40,7 +40,7 @@ public partial class SharedTests
         var repo = new SharedRepo("PostgreSql");
         var query = repo.GetQuery(SqlGetData);
 
-        Assert.Equal("SELECT 'From .pg.sql'", query);
+        Assert.Equal("SELECT 'From .pg.sql'" + Environment.NewLine, query);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public partial class SharedTests
         var repo = new SharedRepo("SqlServer");
         var query = repo.GetQuery(SqlGetData);
 
-        Assert.Equal("SELECT 'From .ms.sql'", query);
+        Assert.Equal("SELECT 'From .ms.sql'" + Environment.NewLine, query);
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public partial class SharedTests
     {
         // PublicSharedQueries is in the Abstractions project
         // Its SqlGetSharedData property is public because of [SqlPartial(AccessModifier.Public)]
-        var sql = SqlPartial.Integration.Shared.Abstractions.PublicSharedQueries.SqlGetSharedData;
+        var sql = Abstractions.PublicSharedQueries.SqlGetSharedData;
 
-        Assert.Equal("SELECT 'Public SQL content';", sql.Default);
+        Assert.Equal("SELECT 'Public SQL content';" + Environment.NewLine, sql.Default);
     }
 }
