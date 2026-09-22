@@ -500,7 +500,7 @@ namespace SqlPartial
 
         if (type.TypeKind == TypeKind.Interface)
         {
-            sb.AppendLine($"    static partial class {type.Name}SqlExtensions");
+            sb.AppendLine($"    {GetTypeAccessibility(type)} static partial class {type.Name}SqlExtensions");
             sb.AppendLine("    {");
 
             var nullable = supportsNullable && config.NullableEnabled;
@@ -516,7 +516,7 @@ namespace SqlPartial
         else
         {
             var nullable = supportsNullable && config.NullableEnabled;
-            sb.AppendLine($"    partial {type.TypeKind.ToString().ToLower()} {CSharpNames.Escape(type.Name)}");
+            sb.AppendLine($"    {GetTypeAccessibility(type)} partial {type.TypeKind.ToString().ToLower()} {CSharpNames.Escape(type.Name)}");
             sb.AppendLine("    {");
 
             foreach (var method in methods)
@@ -532,6 +532,16 @@ namespace SqlPartial
         sb.AppendLine("}");
         return sb.ToString();
     }
+
+    private static string GetTypeAccessibility(ITypeSymbol type) => type.DeclaredAccessibility switch
+    {
+        Accessibility.Public => "public",
+        Accessibility.Private => "private",
+        Accessibility.Protected => "protected",
+        Accessibility.ProtectedOrInternal => "protected internal",
+        Accessibility.ProtectedAndInternal => "private protected",
+        _ => "internal"
+    };
 
     private static void EmitOverload(
         StringBuilder sb, IMethodSymbol method, ITypeSymbol type, bool isExtension, string baseVisibility,

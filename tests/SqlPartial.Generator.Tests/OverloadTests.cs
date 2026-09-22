@@ -105,7 +105,7 @@ namespace TestNamespace
     }
 }
 
-namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+namespace SqlPartial { internal class SqlAttribute : System.Attribute { } }
 ";
 
         var (type, method) = GetSymbols(source, "TestNamespace.IRepo", "Query");
@@ -120,13 +120,163 @@ namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
         var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
 
         Assert.Contains("static partial class IRepoSqlExtensions", overloads);
-        Assert.DoesNotContain("public static partial class IRepoSqlExtensions", overloads);
 
         // Interfaces use extension class which must be static
         Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlStrings query)", overloads);
         Assert.Contains("static void Query(this TestNamespace.IRepo self, TestNamespace.Sql.SqlDynamic query)", overloads);
         Assert.Contains("self.SqlProviderName", overloads);
         Assert.Contains("self.Query(query.Get(self.SqlProviderName))", overloads);
+    }
+
+    [Theory]
+    [InlineData("public", false, "public", "internal", "TestNamespace.Sql")]
+    [InlineData("public", true, "public", "public", "Shared")]
+    [InlineData("internal", false, "internal", "internal", "TestNamespace.Sql")]
+    [InlineData("internal", true, "internal", "public", "Shared")]
+    public void SourceBuilder_BuildOverloads_ShouldMatchInterfaceAndMethodVisibility(
+        string typeAccessibility,
+        bool usePublicSqlTypes,
+        string expectedTypeAccessibility,
+        string expectedMethodAccessibility,
+        string sqlNamespace)
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    " + typeAccessibility + @" interface IRepo
+    {
+        void Query([Sql] string query);
+    }
+}
+
+namespace SqlPartial { internal class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.IRepo", "Query");
+        var config = usePublicSqlTypes
+            ? new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true, false, "Shared")
+            : new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains($"{expectedTypeAccessibility} static partial class IRepoSqlExtensions", overloads);
+        Assert.Contains($"{expectedMethodAccessibility} static void Query(this TestNamespace.IRepo self, {sqlNamespace}.SqlStrings query)", overloads);
+    }
+
+    [Theory]
+    [InlineData("public", false, "public", "internal", "TestNamespace.Sql")]
+    [InlineData("public", true, "public", "public", "Shared")]
+    [InlineData("internal", false, "internal", "internal", "TestNamespace.Sql")]
+    [InlineData("internal", true, "internal", "public", "Shared")]
+    public void SourceBuilder_BuildOverloads_ShouldMatchClassAndMethodVisibility(
+        string typeAccessibility,
+        bool usePublicSqlTypes,
+        string expectedTypeAccessibility,
+        string expectedMethodAccessibility,
+        string sqlNamespace)
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    " + typeAccessibility + @" partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        public void Query([Sql] string query) { }
+    }
+}
+
+namespace SqlPartial { internal class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
+        var config = usePublicSqlTypes
+            ? new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true, false, "Shared")
+            : new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains($"{expectedTypeAccessibility} partial class Repo", overloads);
+        Assert.Contains($"{expectedMethodAccessibility} void Query({sqlNamespace}.SqlStrings query)", overloads);
+    }
+
+    [Theory]
+    [InlineData("public", true, "public", "Shared")]
+    [InlineData("internal", true, "internal", "Shared")]
+    [InlineData("private", true, "private", "Shared")]
+    [InlineData("protected", true, "protected", "Shared")]
+    [InlineData("protected internal", true, "protected internal", "Shared")]
+    [InlineData("private protected", true, "private protected", "Shared")]
+    [InlineData("public", false, "internal", "TestNamespace.Sql")]
+    [InlineData("internal", false, "internal", "TestNamespace.Sql")]
+    [InlineData("private", false, "private", "TestNamespace.Sql")]
+    [InlineData("protected", false, "internal", "TestNamespace.Sql")]
+    [InlineData("protected internal", false, "internal", "TestNamespace.Sql")]
+    [InlineData("private protected", false, "private protected", "TestNamespace.Sql")]
+    public void SourceBuilder_BuildOverloads_ShouldRespectOriginalMethodAccessibility(
+        string methodAccessibility,
+        bool usePublicSqlTypes,
+        string expectedMethodAccessibility,
+        string sqlNamespace)
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    public partial class Repo
+    {
+        public string SqlProviderName => ""Postgres"";
+        " + methodAccessibility + @" void Query([Sql] string query) { }
+    }
+}
+
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.Repo", "Query");
+        var config = usePublicSqlTypes
+            ? new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true, false, "Shared")
+            : new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains($"{expectedMethodAccessibility} void Query({sqlNamespace}.SqlStrings query)", overloads);
+    }
+
+    [Theory]
+    [InlineData("public", true, "public", "Shared")]
+    [InlineData("internal", true, "internal", "Shared")]
+    [InlineData("public", false, "internal", "TestNamespace.Sql")]
+    [InlineData("internal", false, "internal", "TestNamespace.Sql")]
+    public void SourceBuilder_BuildOverloads_ShouldRespectInterfaceMethodAccessibility(
+        string methodAccessibility,
+        bool usePublicSqlTypes,
+        string expectedMethodAccessibility,
+        string sqlNamespace)
+    {
+        var source = @"
+using SqlPartial;
+namespace TestNamespace
+{
+    public interface IRepo
+    {
+        string SqlProviderName { get; }
+        " + methodAccessibility + @" void Query([Sql] string query) { }
+    }
+}
+
+namespace SqlPartial { public class SqlAttribute : System.Attribute { } }
+";
+
+        var (type, method) = GetSymbols(source, "TestNamespace.IRepo", "Query");
+        var config = usePublicSqlTypes
+            ? new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true, false, "Shared")
+            : new GeneratorConfig("TestNamespace", [], [], "TestNamespace.Sql", null, true);
+
+        var overloads = SourceBuilder.BuildOverloads("TestNamespace", type, [method], config, true);
+
+        Assert.Contains($"{expectedMethodAccessibility} static void Query(this TestNamespace.IRepo self, {sqlNamespace}.SqlStrings query)", overloads);
     }
 
     [Fact]
