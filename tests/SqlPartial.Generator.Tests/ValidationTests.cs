@@ -181,6 +181,91 @@ public class ValidationTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Generator_ShouldRejectNonPartialOverloadContainers(bool extensionMethod)
+    {
+        var source = extensionMethod
+            ? """
+              namespace MyProject {
+                  class Repo { public string SqlProviderName => "Pg"; }
+                  static class Extensions {
+                      public static void Execute(this Repo repo, [SqlPartial.Sql] string sql) { }
+                  }
+              }
+              """
+            : """
+              namespace MyProject {
+                  class Repo {
+                      public string SqlProviderName => "Pg";
+                      public void Execute([SqlPartial.Sql] string sql) { }
+                  }
+              }
+              """;
+
+        var (result, output) = Run(source, []);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "SQLPG024" && d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.GeneratedTrees, t => t.FilePath.Contains("Overloads"));
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Theory]
+    [InlineData(false, "public", "public", false, Accessibility.Internal)]
+    [InlineData(false, "public", "public", true, Accessibility.Public)]
+    [InlineData(false, "public", "internal", false, Accessibility.Internal)]
+    [InlineData(false, "public", "internal", true, Accessibility.Internal)]
+    [InlineData(false, "internal", "public", false, Accessibility.Internal)]
+    [InlineData(false, "internal", "public", true, Accessibility.Public)]
+    [InlineData(true, "public", "", false, Accessibility.Internal)]
+    [InlineData(true, "public", "", true, Accessibility.Public)]
+    [InlineData(true, "internal", "", false, Accessibility.Internal)]
+    [InlineData(true, "internal", "", true, Accessibility.Public)]
+    public void Generator_ShouldCompileSupportedTypeAndMethodVisibility(
+        bool useInterface,
+        string typeAccessibility,
+        string methodAccessibility,
+        bool shared,
+        Accessibility expectedMethodAccessibility)
+    {
+        var source = useInterface
+            ? $$"""
+              namespace MyProject {
+                  {{typeAccessibility}} interface IRepo {
+                      string SqlProviderName { get; }
+                      void Execute([SqlPartial.Sql] string sql);
+                  }
+              }
+              """
+            : $$"""
+              namespace MyProject {
+                  {{typeAccessibility}} partial class Repo {
+                      public string SqlProviderName => "Pg";
+                      {{methodAccessibility}} void Execute([SqlPartial.Sql] string sql) { }
+                  }
+              }
+              """;
+
+        var (result, output) = Run(
+            source,
+            [],
+            shared ? new() { ["SqlPartialEmitSharedNamespace"] = "MyProject" } : null);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(output.GetDiagnostics(), d => d.Severity == DiagnosticSeverity.Error);
+
+        var generatedType = output.GetTypeByMetadataName(
+            useInterface ? "MyProject.IRepoSqlExtensions" : "MyProject.Repo")!;
+        var overloads = generatedType.GetMembers("Execute")
+            .OfType<IMethodSymbol>()
+            .Where(m => m.Parameters.Any(p => p.Type.Name == "SqlStrings"))
+            .ToArray();
+
+        Assert.Single(overloads);
+        Assert.Equal(expectedMethodAccessibility, overloads[0].DeclaredAccessibility);
+    }
+
+    [Theory]
     [InlineData("ref", "")]
     [InlineData("out", "count = 1;")]
     [InlineData("in", "")]

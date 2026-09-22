@@ -6,6 +6,8 @@ This guide provides examples of how to write SQL for various scenarios, focusing
 
 Instead of manually calling `.Get()` or `.Default`, use the `[Sql]` attribute from `SqlPartial` to handle DBMS resolution automatically.
 
+The containing class must be top-level, non-generic, and `partial`. Traditional top-level, non-generic interfaces with ordinary public instance methods are also supported through a generated extension class. Nested/generic target types, records/structs, and modern interface members are not supported.
+
 **C# Repository:**
 ```csharp
 using SqlPartial;

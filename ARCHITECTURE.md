@@ -86,6 +86,8 @@ ImmutableArray<(FullTypeName, Modifier, MemberNames)> ← Collect()
     │ used to detect naming collisions and customize visibility
 ```
 
+Before grouping methods, the overload pipeline rejects non-interface containing types that are not declared `partial`, reports `SQLPG024`, and skips source generation for those containers.
+
 ### Why use `Collect()` multiple times?
 
 The first `Collect()` gathers all `SqlFile` objects so they can be grouped by query. Without this, each `SqlFile` would be processed independently, and it would be impossible to know which files belong to the same query.
@@ -119,6 +121,8 @@ Configuration validation reports provider errors as `SQLPG001` and namespace/typ
 `FilePathParser` validates filename identifiers and canonical project-directory boundaries. Invalid recognized filenames or derived namespaces produce `SQLPG022` and are skipped. Unknown extensions retain optional `SQLPG020` behavior. `CSharpNames` validates C# names and escapes keywords when emitting identifiers.
 
 Class metadata contains only supported top-level, non-generic partial classes. A class batch without an exact matching name and namespace reports `SQLPG021` and skips source output for that target.
+
+Overload generation requires a `partial` containing class. Interfaces are emitted through a separate extension class and do not require `partial`. Generic or nested containing types, records/structs, and modern interface members remain outside the supported contract; see `docs/LIMITATIONS.md`.
 
 ### `GeneratorConfig`
 
@@ -230,6 +234,8 @@ When a method parameter is marked with `[Sql]`, the generator produces **three o
 | `SqlStringBuilder` | `.Build(SqlProviderName)` | `null` (class) |
 
 Each overload resolves the provider-specific string at runtime using the type's `SqlProviderName` property.
+
+The generated method preserves the original method accessibility, capped by the accessibility of the generated or shared SQL types. With project-local internal SQL types, public and protected overloads are emitted as internal. Public shared SQL types retain the original public accessibility.
 
 ---
 

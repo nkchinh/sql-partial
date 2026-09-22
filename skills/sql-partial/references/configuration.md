@@ -78,11 +78,14 @@ Namespace and external type settings must contain valid C# names. Configure only
 - **Problem**: You used `[Sql]` on a parameter but the analyzer flagged the class.
 - **Fix**: Add `public string SqlProviderName { get; set; }` to your `partial class`. It can be static or instance, and can be defined in a base class or interface.
 
-### 2. Inconsistent Accessibility (CS0703)
-- **Problem**: Compiler error stating `ISqlString` is less accessible than your method.
-- **Cause**: Core types are `internal` by default. If your repo method is `public`, it can't reference an `internal` interface.
-- **Fix**: Use `SqlPartialEmitSharedNamespace` to make core types `public`.
+### 2. Non-partial `[Sql]` Container (SQLPG024)
+- **Problem**: A class or static extension class contains a method with a `[Sql]` parameter but no overload is generated.
+- **Fix**: Add `partial` to the containing class. Interfaces do not require `partial` because their overloads use a separate extension class.
 
-### 3. Namespace Mismatch
+### 3. Generated Overload Is Internal
+- **Cause**: Core SQL types are `internal` by default, so generated overload visibility is capped at `internal` even when the original method is public.
+- **Fix**: Use `SqlPartialEmitSharedNamespace` (or consume public shared SQL types) when the generated overload must be public.
+
+### 4. Namespace Mismatch
 - **Problem**: SQL properties are not visible on the class.
 - **Check**: Ensure the `.sql` file and the `.cs` file are in the same directory. The generator uses folder paths to derive namespaces.

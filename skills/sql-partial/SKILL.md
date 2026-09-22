@@ -1,6 +1,7 @@
 ---
 name: sql-partial
-source: https://github.com/nkchinh/sql-partial
+metadata:
+  source: https://github.com/nkchinh/sql-partial
 description: |
   Guides the agent in managing SQL partial files for SqlPartial.Generator.
   Triggers when:
@@ -42,7 +43,7 @@ Always leverage the provided abstraction mechanisms to handle DBMS-specific reso
 
 **Option A: Zero-Boilerplate (Modern)**
 Use `[Sql]` (from `SqlPartial`) on `string` parameters. The generator handles the `.Get()` call for you.
-- **Requirement**: The containing type must define a `string SqlProviderName` property.
+- **Requirements**: A containing class must be `partial` and define a `string SqlProviderName` property. Static classes containing extension methods must also be `partial`; otherwise generation stops with `SQLPG024`. Interfaces use a separate generated extension class and do not need to be partial.
 
 ```csharp
 using SqlPartial;
@@ -58,6 +59,8 @@ public partial class UserRepo {
 - **Collision Protection**: The generator automatically detects if a property name (e.g., `SqlGetUsers`) already exists in your manual code and will rename the generated property to `SqlGetUsers1` (and report `SQLPG005`). This works for **all** target classes.
 
 Declare an existing top-level, non-generic `partial class` whose name and namespace match the SQL files exactly. For a shared catalog, declare one `static partial class` and add its query files. Consult the configuration guide for provider and namespace rules, and the troubleshooting guide for diagnostic details.
+
+Current target boundaries apply to both SQL files and `[Sql]` overloads: nested and generic containing types, records, record structs, and structs are unsupported. Interface overloads support only top-level, non-generic interfaces with ordinary public instance methods; do not use default implementations, non-public members, or static abstract/virtual members.
 
 **Option B: Generic Execution (Manual)**
 Encapsulate DB calls in generic methods using `where TSql : struct, ISqlString`.

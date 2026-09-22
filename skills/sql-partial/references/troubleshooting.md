@@ -29,26 +29,34 @@ public partial class UserRepo {
 }
 ```
 
-## 3. Inconsistent Accessibility (CS0703)
+## 3. Generated Overload Visibility
 
-If you get an error saying `ISqlString` is less accessible than the generated overload:
+Generated overloads cannot be more visible than their SQL parameter types:
 
-- **Cause**: By default, `ISqlString` and `SqlStrings` are `internal`. If your repository method is `public`, the generated overload (which references `ISqlString`) would also be `public`, which is invalid.
-- **Fix**: Either make your repository method `internal`, or use `SqlPartialEmitSharedNamespace` to make the core types `public`.
+- **Default behavior**: `ISqlString`, `SqlStrings`, and related types are `internal`, so the generator caps otherwise public/protected overloads at `internal`.
+- **Public API fix**: Use `SqlPartialEmitSharedNamespace` or public shared SQL types when generated overloads must be public.
 
-## 4. `SqlStrings` Struct Missing or Ambiguous
+## 4. `SQLPG024`: Non-partial `[Sql]` Container
+
+Classes containing methods with `[Sql]` parameters must be declared `partial`. This includes static classes containing extension methods. The generator reports `SQLPG024` and skips overload generation for the containing class. Interfaces do not need `partial` because their overloads are emitted into a separate extension class.
+
+## 5. Unsupported `[Sql]` Target Shape
+
+`[Sql]` overload generation does not support nested or generic containing types, records, record structs, or structs. Interface support is limited to top-level, non-generic interfaces with ordinary public instance methods; default implementations, non-public members, and static abstract/virtual members are unsupported.
+
+## 6. `SqlStrings` Struct Missing or Ambiguous
 
 - **Struct Missing**: If the project doesn't have a `SqlStrings` type, the generated class will error.
   - *Fix*: Ensure `SqlPartialProviders` is defined in `.csproj`, then build.
 - **Ambiguous / Multiple Structs**: If you have multiple projects referencing each other, you might have multiple `SqlStrings` types.
   - *Fix*: Use `SqlPartialEmitSharedNamespace` in your Abstractions project and `SqlPartialUseSharedNamespace` in consumer projects. Alternatively, use `<SqlPartialStringsType>` to point to a specific existing struct.
 
-## 5. SQL Syntax Errors in Generated C#
+## 7. SQL Syntax Errors in Generated C#
 
 - **Unescaped Quotes**: The generator uses verbatim strings (`@""`). If your SQL has double quotes, they must be escaped as `""`.
 - **Character Encoding**: Ensure `.sql` files are saved as UTF-8.
 
-## 6. Generator Diagnostics
+## 8. Generator Diagnostics
 
 The generator emits these codes during build. If you encounter an Error, the build will fail. Warnings indicate potential runtime issues.
 
@@ -69,10 +77,11 @@ The generator emits these codes during build. If you encounter an Error, the bui
 | **SQLPG021** | `Error` | Design | Missing matching top-level, non-generic partial class. No members emitted for this target. |
 | **SQLPG022** | `Error` | Usage | Invalid recognized filename, derived namespace, or file outside the project directory. File skipped. |
 | **SQLPG023** | `Error` | Config | Invalid namespace/type setting or simultaneous emit/use shared namespace modes. SQL generation stopped. |
+| **SQLPG024** | `Error` | Design | A class containing a method with a `[Sql]` parameter is not declared `partial`. Overload generation is skipped for that class. |
 
 For configuration errors, check provider extensions and names, namespace/type settings, and shared namespace modes against the [Configuration Guide](configuration.md). Fix configuration errors before investigating missing generated members.
 
-## 7. Collision Resolution
+## 9. Collision Resolution
 
 SqlPartial is designed to keep your project compilable even when conflicts occur.
 

@@ -139,6 +139,8 @@ namespace MyApp.Data
 }
 ```
 
+Classes containing methods with `[Sql]` parameters must be declared `partial`. This includes static classes containing extension methods; otherwise the generator reports `SQLPG024` and skips overload generation. Interfaces use a separate generated extension class and do not need to be partial. See [Limitations](docs/LIMITATIONS.md) for the supported interface shape and unsupported target types.
+
 ---
 
 ## File naming convention
@@ -290,6 +292,7 @@ To avoid duplicating core types and enable cross-project attribute sharing, use 
 | `SQLPG021` | **Error** | Design | No matching top-level, non-generic partial class for a SQL file. |
 | `SQLPG022` | **Error** | Usage | Invalid SQL filename, folder namespace, or file outside the project directory. |
 | `SQLPG023` | **Error** | Config | Invalid namespace/type name or simultaneous emit/use shared namespace settings. |
+| `SQLPG024` | **Error** | Design | A class containing a method with a `[Sql]` parameter is not declared `partial`. |
 
 ---
 

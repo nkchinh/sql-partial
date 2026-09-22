@@ -74,6 +74,10 @@ public class SqlPartialGenerator : IIncrementalGenerator
             "SQLPG023", "Invalid generator configuration", "{0}",
             Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
+        public static readonly DiagnosticDescriptor SQLPG024 = new(
+            "SQLPG024", "Non-partial overload container", "{0}",
+            Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
+
         public static DiagnosticDescriptor GetDescriptor(string id) => id switch
         {
             "SQLPG001" => SQLPG001,
@@ -88,6 +92,7 @@ public class SqlPartialGenerator : IIncrementalGenerator
             "SQLPG021" => SQLPG021,
             "SQLPG022" => SQLPG022,
             "SQLPG023" => SQLPG023,
+            "SQLPG024" => SQLPG024,
             _ => new DiagnosticDescriptor(id, "Generator Error", "{0}", Category, DiagnosticSeverity.Error, true)
         };
     }
@@ -463,8 +468,24 @@ public class SqlPartialGenerator : IIncrementalGenerator
             var (methods, (cfg, nullableSupport)) = tuple;
             if (!cfg.IsValid || methods.IsDefaultOrEmpty) return;
 
-            var methodsByType = methods
+            var distinctMethods = methods
                 .Distinct<IMethodSymbol>(SymbolEqualityComparer.Default)
+                .ToArray();
+
+            foreach (var invalidGroup in distinctMethods
+                         .Where(m => !IsSupportedOverloadContainer(m.ContainingType))
+                         .GroupBy(m => m.ContainingType, SymbolEqualityComparer.Default))
+            {
+                var type = invalidGroup.Key!;
+                var location = invalidGroup.First().Locations.FirstOrDefault();
+                ctx.ReportDiagnostic(Diagnostic.Create(
+                    Diagnostics.SQLPG024,
+                    location,
+                    $"Type '{type.ToDisplayString()}' must be declared partial to generate overloads for [Sql] parameters."));
+            }
+
+            var methodsByType = distinctMethods
+                .Where(m => IsSupportedOverloadContainer(m.ContainingType))
                 .Where(m =>
                     (m.IsExtensionMethod && m.Parameters.Length > 0 &&
                      Analyzers.SqlMethodAnalyzer.HasSqlProviderName(m.Parameters[0].Type, false)) ||
@@ -489,6 +510,12 @@ public class SqlPartialGenerator : IIncrementalGenerator
             }
         });
     }
+
+    private static bool IsSupportedOverloadContainer(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Interface ||
+        type.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax() is TypeDeclarationSyntax declaration &&
+            declaration.Modifiers.Any(SyntaxKind.PartialKeyword));
 
     private static void ReportDiagnostic(
         SourceProductionContext ctx, DiagnosticDescriptor descriptor, string message,
